@@ -15,3 +15,8 @@ This repository includes:
   - A preprocessing script, that convert Nifti images (and optionally labels) to .npz format. The images are then cropped, resized and normalized.
   - Training and testing script for cascaded registration.
   - A multi-atlas segmentation script using the trained weights of the cascaded registration.
+
+For more information about CasReg, please read the following paper:
+```
+*Unsupervised fetal brain MR segmentation using multi-atlas deep learning registration* 
+```
