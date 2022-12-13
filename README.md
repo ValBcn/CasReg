@@ -37,7 +37,18 @@ CasReg requires a GPU for training and inference (it should have at least 10GB o
 
 ### Dependencies
 
-We highly recommend to use a Conda environment to install the 
+CasReg uses th following packages:
+
+- pytorch-gpu 1.9.0
+- torchvision 0.2.2
+- torchsummary 1.5.1
+- cudatoolkit 10.2
+- numpy 1.21
+- nibabel 4.0.1
+- simpleitk 2.1.1
+- scipy 1.7.3
+
+We highly recommend to use a Conda environment to install the package dependencies.
 
 ## Preprocessing
 
