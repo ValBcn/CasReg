@@ -4,6 +4,7 @@
 
 <p align="center">
 ![network](images/casc_net_small.png)
+</p>
 
 CasReg is a deep learning model based on cascaded networks, that produce small amounts of displacement to warp progressively the moving image towards the fixed image. 
 
