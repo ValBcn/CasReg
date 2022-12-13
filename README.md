@@ -1,3 +1,3 @@
 # CasReg
 
-![alt text](./images/casc_reg.png?raw=true)
+![network](images/casc_reg.png)
