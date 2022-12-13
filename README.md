@@ -3,7 +3,7 @@
 ## Introduction
 
 <p align="center">
-  <img src="https://github.com/ValBcn/CasReg/blob/master/images/casc_net.png?raw=true" Title="Overview of the cascaded registration method"/>
+  <img src="https://github.com/ValBcn/CasReg/blob/master/images/casc_net.png?raw=true" title="Overview of the cascaded registration method" width=50% height=50%>
 </p>
 
 
