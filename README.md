@@ -17,6 +17,4 @@ This repository includes:
   - A multi-atlas segmentation script using the trained weights of the cascaded registration.
 
 For more information about CasReg, please read the following paper:
-```
 *Unsupervised fetal brain MR segmentation using multi-atlas deep learning registration* 
-```
