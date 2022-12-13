@@ -2,6 +2,6 @@
 
 ## Introduction
 
-![network](images/casc_net.png)
+![network](images/casc_net_small.png)
 
 
