@@ -19,7 +19,7 @@ This repository includes:
 For more information about CasReg, please read the following paper:
 
 *Unsupervised fetal brain MR segmentation using multi-atlas deep learning registration*\
-Valentin Comte<sup>1</sup>, Mireia Alenya<sup>1</sup>, Andrea Urru<sup>1</sup>, Ayako Nakaki<sup>2/sup>, Francesca Crovetto<sup>2/sup>, Oscar Camara<sup>1</sup>, Elisenda Eixarch<sup>2/sup>, Fàtima Crispi<sup>2/sup>, Gemma Piella Fenoy<sup>1</sup>, Mario Ceresa<sup>1</sup>, and Miguel A. González Ballester<sup>1,3<sup>\
+Valentin Comte<sup>1</sup>, Mireia Alenya<sup>1</sup>, Andrea Urru<sup>1</sup>, Ayako Nakaki<sup>2/sup>, Francesca Crovetto<sup>2/sup>, Oscar Camara<sup>1</sup>, Elisenda Eixarch<sup>2</sup>, Fàtima Crispi<sup>2</sup>, Gemma Piella Fenoy<sup>1</sup>, Mario Ceresa<sup>1</sup>, and Miguel A. González Ballester<sup>1,3<sup>\
 <sup>1</sup> BCN MedTech, Department of Information and Communication Technologies, Universitat Pompeu
 Fabra, Barcelona, Spain\
 <sup>2</sup> Maternal Fetal Medicine, BCNatal, Center for Maternal Fetal and Neonatal Medicine (Hospital Clínic
