@@ -1,3 +1,3 @@
 # CasReg
 
-![network](images/casc_net.png width=50% height=50%)
+![network](images/casc_net.png)
