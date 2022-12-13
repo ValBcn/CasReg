@@ -2,9 +2,12 @@
 
 ## Introduction
 
-<p align="center">
 ![network](images/casc_net_small.png)
+
+<p align="center">
+  <img src="https://github.com/ValBcn/CasReg/blob/master/images/casc_net.png?raw=true" alt="Sublime's custom image"/>
 </p>
+
 
 CasReg is a deep learning model based on cascaded networks, that produce small amounts of displacement to warp progressively the moving image towards the fixed image. 
 
