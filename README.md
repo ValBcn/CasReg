@@ -2,10 +2,8 @@
 
 ## Introduction
 
-![network](images/casc_net_small.png)
-
 <p align="center">
-  <img src="https://github.com/ValBcn/CasReg/blob/master/images/casc_net.png?raw=true" alt="Sublime's custom image"/>
+  <img src="https://github.com/ValBcn/CasReg/blob/master/images/casc_net.png?raw=true" Title="Overview of the cascaded registration method"/>
 </p>
 
 
