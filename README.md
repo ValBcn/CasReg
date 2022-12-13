@@ -29,6 +29,16 @@ Fabra, Barcelona, Spain\
 and Hospital Sant Joan de Déu), Barcelona, Spain\
 3 ICREA, Barcelona, Spain</sup>
 
+## Installation
+
+### Prerequisites
+
+CasReg requires a GPU for training and inference (it should have at least 10GB of memory).
+
+### Dependencies
+
+We highly recommend to use a Conda environment to install the 
+
 ## Preprocessing
 
 ## Training
