@@ -41,6 +41,12 @@ We highly recommend to use a Conda environment to install the
 
 ## Preprocessing
 
+To run the preprocessing, use the following command:
+
+```
+python preprocessing.py --img_path /path/to/nifti/images/folder/ --label_path /path/to/nifti/labels/folder/ --prep_dir /path/to/preprocessed/folder/
+```
+
 ## Training
 
 ## Testing
