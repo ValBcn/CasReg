@@ -48,7 +48,11 @@ CasReg uses th following packages:
 - simpleitk 2.1.1
 - scipy 1.7.3
 
-We highly recommend to use a Conda environment to install the package dependencies.
+We highly recommend to use a Conda environment to install the package dependencies. To install all the required package, run:
+
+```
+conda env create -f casreg_env.yml
+```
 
 ## Preprocessing
 
