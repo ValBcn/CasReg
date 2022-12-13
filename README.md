@@ -2,14 +2,16 @@
 
 ## Introduction
 
-<p align="center">
-  <img src="https://github.com/ValBcn/CasReg/blob/master/images/casc_net.png?raw=true" title="Overview of the cascaded registration method" width=70% height=70%>
-</p>
+
 
 
 CasReg is a deep learning model based on cascaded networks, that produce small amounts of displacement to warp progressively the moving image towards the fixed image. 
 
 The trained registration model can then be used to perform Multi-Atlas Segmentation (MAS) : multiple annotated images and their labels are registered with the image to segment, the resulting warped labels are then combined to form a refined segmentation.
+
+<p align="center">
+  <img src="https://github.com/ValBcn/CasReg/blob/master/images/casc_net.png?raw=true" title="Overview of the cascaded registration method" width=70% height=70%>
+</p>
 
 This repository includes:
   - A preprocessing script, that convert Nifti images (and optionally labels) to .npz format. The images are then cropped, resized and normalized.
@@ -26,3 +28,11 @@ Fabra, Barcelona, Spain\
 2 Maternal Fetal Medicine, BCNatal, Center for Maternal Fetal and Neonatal Medicine (Hospital Clínic
 and Hospital Sant Joan de Déu), Barcelona, Spain\
 3 ICREA, Barcelona, Spain</sup>
+
+## Preprocessing
+
+## Training
+
+## Testing
+
+## Multi-atlas segmentation
