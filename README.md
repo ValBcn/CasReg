@@ -74,7 +74,7 @@ python train.py --save_dir /path/to/the/weights/folder/ --npz_dir /path/to/prepr
 save_dir: the weights will be saved there.\
 nb_labels: is the number of labels of the segmentation used for validation (optional).\
 img_size: defines the new shape of the input images (and labels), default is (128,128,128).\
-contracted: 0 for original architecture (uses more memory) / 1 for the contracted architecture.\
+contracted: 0 for original architecture (uses more memory) / 1 for the contracted architecture.
 
 ## Testing
 
