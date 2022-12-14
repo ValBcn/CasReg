@@ -61,7 +61,9 @@ To run the preprocessing, use the following command:
 ```
 python preprocessing.py --img_path /path/to/nifti/images/folder/ --label_path /path/to/nifti/labels/folder/ --prep_dir /path/to/preprocessed/folder/ --img_size 128 128 128
 ```
-img_size defines the new shape of the input images (and labels), default is (128,128,128).
+img_size: defines the new shape of the input images (and labels), default is (128,128,128).
+label_path (optional): if given, the images will be cropped around the labelled regions, unless --crop_zero is used.
+crop_zero (optional): maximal value of the zero regions, the image will be cropped to remove them.
 
 ## Training
 
