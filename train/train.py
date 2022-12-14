@@ -49,8 +49,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="For training ViT-VNet for registration of 3D fetal brain MRI")
     
-    parser.add_argument("--weights_dir", type = str, required = False,
-                        help = "Path to the base directory where you want to save your weights")
     parser.add_argument("--in_weights", type = str, required = False,
                         help = " path to pretrained weights")
     parser.add_argument("--save_dir", type = str, required = False,
