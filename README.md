@@ -48,7 +48,7 @@ CasReg uses th following packages:
 - simpleitk 2.1.1
 - scipy 1.7.3
 
-We highly recommend to use a Conda environment to install the package dependencies. To install all the required package, run:
+We highly recommend to use a Conda environment to install the package dependencies. To install all the required packages, run:
 
 ```
 conda env create -f casreg_env.yml
@@ -59,10 +59,22 @@ conda env create -f casreg_env.yml
 To run the preprocessing, use the following command:
 
 ```
-python preprocessing.py --img_path /path/to/nifti/images/folder/ --label_path /path/to/nifti/labels/folder/ --prep_dir /path/to/preprocessed/folder/
+python preprocessing.py --img_path /path/to/nifti/images/folder/ --label_path /path/to/nifti/labels/folder/ --prep_dir /path/to/preprocessed/folder/ --img_size 128 128 128
 ```
+img_size defines the new shape of the input images (and labels), default is (128,128,128).
 
 ## Training
+
+To run the training, use the following command:
+
+```
+python train.py --save_dir /path/to/the/weights/folder/ --npz_dir /path/to/preprocessed/folder/ --nb_labels 8 --nb_cascades 5 --contracted 1
+```
+
+save_dir: the weights will be saved there.
+nb_labels: is the number of labels of the segmentation used for validation (optional).
+img_size: defines the new shape of the input images (and labels), default is (128,128,128).
+contracted: 0 for original architecture (uses more memory) / 1 for the contracted architecture.
 
 ## Testing
 
