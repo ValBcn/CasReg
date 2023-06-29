@@ -5,6 +5,7 @@ import numpy as np
 from math import exp
 import math
 import torch.nn as nn
+import pystrum.pynd.ndutils as nd
 
 def sum_tensor(inp, axes, keepdim=False):
     axes = np.unique(axes).astype(int)
@@ -1098,81 +1099,379 @@ class MSE_full(torch.nn.Module):
         mse = 1-torch.abs(I2_sum - J2_sum)/ win_size
         
         return torch.mean(mse)
-
-class SED(torch.nn.Module):
+    
+def jacobian_determinant_vxm(disp):
     """
-    Neo-Hookean strain energy density
+    jacobian determinant of a displacement field.
+    NB: to compute the spatial gradients, we use np.gradient.
+    Parameters:
+        disp: 2D or 3D displacement field of size [*vol_shape, nb_dims],
+              where vol_shape is of len nb_dims
+    Returns:
+        jacobian determinant (scalar)
     """
 
-    def __init__(self, penalty='l1', loss_mult=None, win=None):
-        super(SED, self).__init__()
-        self.penalty = penalty
-        self.loss_mult = loss_mult
-        self.win = win
+    # check inputs
+    disp = np.squeeze(disp).transpose(1, 2, 3, 0)
+    volshape = disp.shape[:-1]
+    nb_dims = len(volshape)
+    assert len(volshape) in (2, 3), 'flow has to be 2D or 3D'
 
+    # compute grid
+    grid_lst = nd.volsize2ndgrid(volshape)
+    grid = np.stack(grid_lst, len(volshape))
+
+    # compute gradients
+    
+    J = np.gradient(disp+grid)
+
+    # 3D glow
+    if nb_dims == 3:
+        dx = J[0]
+        dy = J[1]
+        dz = J[2]
+
+        # compute jacobian components
+        Jdet0 = (dx[..., 0]+1) * ((dy[..., 1]+1) * (dz[..., 2]+1) - dy[..., 2] * dz[..., 1])
+        Jdet1 = dx[..., 1] * (dy[..., 0] * (dz[..., 2]+1) - dy[..., 2] * dz[..., 0])
+        Jdet2 = dx[..., 2] * (dy[..., 0] * dz[..., 1] - (dy[..., 1]+1) * dz[..., 0])
+        
+        Jdet = Jdet0 - Jdet1 + Jdet2
+        
+        # compute trace
+        Tr1 = dx[..., 0]**2 + dx[..., 1]**2 + dx[..., 2]**2
+        Tr2 = dy[..., 0]**2 + dy[..., 1]**2 + dy[..., 2]**2
+        Tr3 = dz[..., 0]**2 + dz[..., 1]**2 + dz[..., 2]**2
+        
+        Tr = Tr1 + Tr2 + Tr3
+
+        return Jdet
+
+    else:  # must be 2
+
+        dfdx = J[0]
+        dfdy = J[1]
+
+        return dfdx[..., 0] * dfdy[..., 1] - dfdy[..., 0] * dfdx[..., 1]
+
+class local_grad_neo_hookean(torch.nn.Module):
+    def __init__(self, mu=0.2, lambda_=1., return_maps=False, window = 3, mode = "exp", facx = None):
+        super(local_grad_neo_hookean, self).__init__()
+        self.mu = mu
+        self.lambda_ = lambda_
+        self.return_maps = return_maps
+        self.window = window
+        self.mode = mode
+        self.facx = facx
+        
     def forward(self, y_pred, y_true):
         
-        ndims = len(list(y_pred.size())) - 2
-        assert ndims in [1, 2, 3], "volumes should be 1 to 3 dimensions. found: %d" % ndims
-
-        # set window size
-        win = [9] * ndims if self.win is None else self.win
-
-        # compute filters
-        sum_filt = torch.ones([1, 3, *win]).to("cuda")
-
+        # Define the window size for the convolution
+        win = [self.window] * 3
+        
+        pos_idx = np.where(y_true.detach().cpu().numpy() > 0)
+        y_pred2 = torch.zeros((1,3,np.max(pos_idx)-np.min(pos_idx),128,128))
+        y_pred2 = y_pred[:,:,np.min(pos_idx):np.max(pos_idx),...]
+        
+        if self.facx is not None:
+            y_pred2[:,0,...] *= self.facx
+        # Compute the padding size, stride and output shape
         pad_no = math.floor(win[0]/2)
+        stride = (1,1,1)
+        padding = (pad_no, pad_no, pad_no)
 
-        if ndims == 1:
-            stride = (1)
-            padding = (pad_no)
-        elif ndims == 2:
-            stride = (1,1)
-            padding = (pad_no, pad_no)
-        else:
-            stride = (1,1,1)
-            padding = (pad_no, pad_no, pad_no)
-
-        # get convolution function
-        conv_fn = getattr(F, 'conv%dd' % ndims)
-
-        # compute gradients
-        dx = torch.abs(y_pred[:, :, 1:, :-1, :-1] - y_pred[:, :, :-1, :-1, :-1])
-        dy = torch.abs(y_pred[:, :, :-1, 1:, :-1] - y_pred[:, :, :-1, :-1, :-1])
+        # compute the gradient along x,y,z
+        dy = torch.abs(y_pred[:, :, 1:, :-1, :-1] - y_pred[:, :, :-1, :-1, :-1]) 
+        dx = torch.abs(y_pred[:, :, :-1, 1:, :-1] - y_pred[:, :, :-1, :-1, :-1]) 
         dz = torch.abs(y_pred[:, :, :-1, :-1, 1:] - y_pred[:, :, :-1, :-1, :-1])
         
-        # print(dx.size())
-        # print(dy.size())
-        # print(dz.size())
-        dx2_sum = conv_fn(dx**2, sum_filt, stride=stride, padding=padding)
-        dy2_sum = conv_fn(dy**2, sum_filt, stride=stride, padding=padding)
-        dz2_sum = conv_fn(dz**2, sum_filt, stride=stride, padding=padding)
+        # dy = torch.abs(y_pred[:, :, 2:, :-2, :-2] + 2*y_pred[:, :, 1:-1, :-1, :-1] - y_pred[:, :, :-2, :-2, :-2]) 
+        # dx = torch.abs(y_pred[:, :, :-2, 2:, :-2] + 2*y_pred[:, :, :-2, 1:-1, :-2] - y_pred[:, :, :-2, :-2, :-2])
+        # dz = torch.abs(y_pred[:, :, :-2, :-2, 2:] + 2*y_pred[:, :, :-2, :-2, 1:-1] - y_pred[:, :, :-2, :-2, :-2])
+        
+        # Create a filter that will be used to convolve the deformation field
+        sum_filt = torch.ones([1,1, *win]).to("cuda")
+        sum_filt = sum_filt/(self.window**3) # divide by window^3 to get the average over the window
+                
+        # convolve the gradients to get the partial derivatives of the deformation fields
+        dxdx = torch.nn.functional.conv3d(dx[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dX
+        dxdy = torch.nn.functional.conv3d(dy[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dY
+        dxdz = torch.nn.functional.conv3d(dz[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dZ
+        dydx = torch.nn.functional.conv3d(dx[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dX
+        dydy = torch.nn.functional.conv3d(dy[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dY
+        dydz = torch.nn.functional.conv3d(dz[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dZ
+        dzdx = torch.nn.functional.conv3d(dx[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dX
+        dzdy = torch.nn.functional.conv3d(dy[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dY
+        dzdz = torch.nn.functional.conv3d(dz[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dZ
+        
+        # compute the determinant of the deformation gradient tensor
+        det_1 = (dxdx+1) * ((dydy+1) * (dzdz+1) - dydz * dzdy)
+        det_2 = -dxdy * (dydx * (dzdz+1) - dydz * dzdx)
+        det_3 = dxdz * (dydx * dzdy - (dydy+1) * dzdx)
+        J = det_1 + det_2 + det_3
+        
+        # compute the trace of the right Cauchy-Green tensor
+        tr_1 = (dxdx+1)**2 + dxdy**2 + dxdz**2
+        tr_2 = dydx**2 + (dydy+1)**2 + dydz**2
+        tr_3 = dzdx**2 + dzdy**2 +(dzdz+1)**2
+        Tr = tr_1 + tr_2 + tr_3
+        
+        # adding a term based on gradient to avoid divergence
+        grad = dx**2 + dy**2 + dz **2
 
-        win_size = np.prod(win)
+        # compute the determinant of the transformation's Jacobian to check if the transformation is invertible
+        # det_J, Tr = jacobian_determinant_vxm(y_pred.detach().cpu().numpy())
+        det_J = J.flatten()
+        neg = len(det_J[det_J<0])
+        print("percent neg jac :", 100*neg/len(det_J))
         
-        d = (dx2_sum + dy2_sum + dz2_sum) / win_size
+        # disp = np.zeros((3,128,128,128))
         
-        d = d[0,0,...] * 1/(y_true[0,0,:-1,:-1,:-1]+0.1)
+        det2 = jacobian_determinant_vxm(y_pred[0,...].detach().cpu().numpy())
+        det2 = det2.flatten()
+        # print("percent neg jac 2:", 100*len(det2[det2<0])/len(det2))
         
-        print(d.size())
+        # convolve det_F and TrC to get their average value over window for each voxel        
+        # Ic =  torch.nn.functional.conv3d(Ic, sum_filt, stride=stride, padding=padding)
+        # J =  torch.nn.functional.conv3d(J, sum_filt, stride=stride, padding=padding)
+        # vol_change =  torch.nn.functional.conv3d(vol_change, sum_filt, stride=stride, padding=padding)
         
-        # sed = 0
-        # av_J = 0
-        # first = 0
-        # second = 0
-        # for i in range(127):
-        #     F_ = d[i,...]+1
-        #     J = np.abs(np.linalg.det(F_.detach().cpu().numpy()))
-        #     av_J += J
-        #     first += torch.trace(F_)
-        #     second += 5 * (J-1)**2
-        #     if J <= 0:
-        #         sed += (1/127)*(torch.trace(F_) + 5 * (J-1)**2)
-        #     else:
-        #         sed += (1/127)*((torch.trace(F_)*J**(-2./3.)-3) + 5 * (J-1)**2)
-        # print("J = ", av_J/127.)
-        # print("%f + %f" %(first/127.,second/127.))
+        if self.mode == "exp":
+            stretch = Tr*torch.exp(-J+1)-3
+            
+        if self.mode == "original":
+            J[J<=0]=1e-6
+            stretch = Tr*J**(-2./3.)-3
+            # stretch -= stretch.min()
+            
+        vol_change = (J-1)**2 #torch.exp(-J+1)+J-2
+        
+        # compute the Neo-Hookean energy
+        U = (self.mu/2) * stretch + (self.lambda_/2) * vol_change
+        
+        # save the first and second term of the energy, which represent the amount of deformation and the volume change, respectively
+        np.save("strech_c.npy", stretch.detach().cpu().numpy())
+        np.save("volumechange_c.npy", vol_change.detach().cpu().numpy())
+        
+        
+        # return the loss and the first and second term of the energy, if return_maps==True
+        if self.return_maps == True:
+            return torch.sum(U), stretch.detach().cpu().numpy(), vol_change.detach().cpu().numpy()
+        else:
+            return torch.mean(U)
+        
+class local_grad_neo_hookean2D(torch.nn.Module):
+    def __init__(self, mu=0.2, lambda_=1., return_maps=False, window = 3, mode = "exp"):
+        super(local_grad_neo_hookean2D, self).__init__()
+        self.mu = mu
+        self.lambda_ = lambda_
+        self.return_maps = return_maps
+        self.window = window
+        self.mode = mode
+        
+    def forward(self, y_pred, y_true):
+        
+        # Define the window size for the convolution
+        win = [self.window] * 2
+        
+        pos_idx = np.where(y_true.detach().cpu().numpy() > 0)
+        
+        # Compute the padding size, stride and output shape
+        pad_no = math.floor(win[0]/2)
+        stride = (1,1)
+        padding = (pad_no, pad_no)
 
-        # return sed
+        # compute the gradient along x,y,z
+        dy = torch.abs(y_pred[:, :, 1:, :-1] - y_pred[:, :, :-1, :-1]) 
+        dx = torch.abs(y_pred[:, :, :-1, 1:] - y_pred[:, :, :-1, :-1])
         
-        return torch.mean(d)
+  
+        # Create a filter that will be used to convolve the deformation field
+        sum_filt = torch.ones([1,1, *win]).to("cuda")
+        sum_filt = sum_filt/(self.window**2) # divide by window^3 to get the average over the window
+                
+        # convolve the gradients to get the partial derivatives of the deformation fields
+        dxdx = torch.nn.functional.conv2d(dx[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dX
+        dxdy = torch.nn.functional.conv2d(dy[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dY
+        dydx = torch.nn.functional.conv2d(dx[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dX
+        dydy = torch.nn.functional.conv2d(dy[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dY
+        
+        # compute the determinant of the deformation gradient tensor
+        det_1 = (dxdx+1) * (dydy+1)
+        det_2 = -dxdy * dydx 
+        J = det_1 + det_2 
+        
+        # compute the trace of the right Cauchy-Green tensor
+        tr_1 = (dxdx+1)**2 + dxdy**2
+        tr_2 = dydx**2 + (dydy+1)**2
+        Tr = tr_1 + tr_2
+        
+
+        # compute the determinant of the transformation's Jacobian to check if the transformation is invertible
+        # det_J, Tr = jacobian_determinant_vxm(y_pred.detach().cpu().numpy())
+        det_J = J.flatten()
+        neg = len(det_J[det_J<0])
+        print("percent neg jac :", 100*neg/len(det_J))
+        
+        
+        # convolve det_F and TrC to get their average value over window for each voxel        
+        # Ic =  torch.nn.functional.conv3d(Ic, sum_filt, stride=stride, padding=padding)
+        # J =  torch.nn.functional.conv3d(J, sum_filt, stride=stride, padding=padding)
+        # vol_change =  torch.nn.functional.conv3d(vol_change, sum_filt, stride=stride, padding=padding)
+        
+        if self.mode == "exp":
+            stretch = (self.mu/2)*(Tr*torch.exp(-J+1)-3)
+            
+        if self.mode == "original":
+            J[J<=0]=1e-6
+            stretch = (self.mu/2)*(Tr*J**(-2./3.)-3) 
+            stretch -= stretch.min()
+            
+        vol_change = (self.lambda_/2)*(J-1)**2 #torch.exp(-J+1)+J-2
+        # vol_change -= vol_change.min()
+        
+        # compute the Neo-Hookean energy
+        U = (self.mu/2) * stretch + (self.lambda_/2) * vol_change
+        
+        # save the first and second term of the energy, which represent the amount of deformation and the volume change, respectively
+        np.save("strech_c.npy", stretch.detach().cpu().numpy())
+        np.save("volumechange_c.npy", vol_change.detach().cpu().numpy())
+        
+        
+        # return the loss and the first and second term of the energy, if return_maps==True
+        if self.return_maps == True:
+            return torch.sum(U), stretch.detach().cpu().numpy(), vol_change.detach().cpu().numpy()
+        else:
+            return torch.mean(U)
+        
+class local_grad_neo_hookean_with_maps(torch.nn.Module):
+    def __init__(self, mu=0.2, lambda_=1., return_maps=False, window = 3):
+        super(local_grad_neo_hookean_with_maps, self).__init__()
+        self.mu = mu
+        self.lambda_ = lambda_
+        self.return_maps = return_maps
+        self.window = window
+        
+    def forward(self, y_pred, mu, lambda_):
+        
+        # Define the window size for the convolution
+        win = [self.window] * 3
+        
+        # Compute the padding size, stride and output shape
+        pad_no = math.floor(win[0]/2)
+        stride = (1,1,1)
+        padding = (pad_no, pad_no, pad_no)
+
+        # compute the gradient along x,y,z
+        dy = torch.abs(y_pred[:, :, 1:, :-1, :-1] - y_pred[:, :, :-1, :-1, :-1]) 
+        dx = torch.abs(y_pred[:, :, :-1, 1:, :-1] - y_pred[:, :, :-1, :-1, :-1]) 
+        dz = torch.abs(y_pred[:, :, :-1, :-1, 1:] - y_pred[:, :, :-1, :-1, :-1]) 
+        
+        # Create a filter that will be used to convolve the deformation field
+        sum_filt = torch.ones([1,1, *win]).to("cuda")
+        sum_filt = sum_filt/(self.window**3) # divide by window^3 to get the average over the window
+                
+        # convolve the gradients to get the partial derivatives of the deformation fields
+        dxdx = torch.nn.functional.conv3d(dx[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dX
+        dxdy = torch.nn.functional.conv3d(dy[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dY
+        dxdz = torch.nn.functional.conv3d(dz[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dZ
+        dydx = torch.nn.functional.conv3d(dx[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dX
+        dydy = torch.nn.functional.conv3d(dy[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dY
+        dydz = torch.nn.functional.conv3d(dz[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dZ
+        dzdx = torch.nn.functional.conv3d(dx[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dX
+        dzdy = torch.nn.functional.conv3d(dy[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dY
+        dzdz = torch.nn.functional.conv3d(dz[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dZ
+        
+        # compute the determinant of the deformation gradient tensor
+        det_1 = (dxdx+1) * ((dydy+1) * (dzdz+1) - dydz * dzdy)
+        det_2 = -dxdy * (dydx * (dzdz+1) - dydz * dzdx)
+        det_3 = dxdz * (dydx * dzdy - (dydy+1) * dzdx)
+        J = det_1 + det_2 + det_3
+        
+        # compute the trace of the right Cauchy-Green tensor
+        tr_1 = (dxdx+1)**2 + dxdy**2 + dxdz**2
+        tr_2 = dydx**2 + (dydy+1)**2 + dydz**2
+        tr_3 = dzdx**2 + dzdy**2 +(dzdz+1)**2
+        Tr = tr_1 + tr_2 + tr_3
+        
+        # adding a term based on gradient to avoid divergence
+        grad = dx**2 + dy**2 + dz **2
+
+        # compute the determinant of the transformation's Jacobian to check if the transformation is invertible
+        # det_J, Tr = jacobian_determinant_vxm(y_pred.detach().cpu().numpy())
+        det_J = J.flatten()
+        neg = len(det_J[det_J<0])
+        print("percent neg jac :", 100*neg/len(det_J))
+        
+        # disp = np.zeros((3,128,128,128))
+        
+        det2 = jacobian_determinant_vxm(y_pred[0,...].detach().cpu().numpy())
+        det2 = det2.flatten()
+        print("percent neg jac 2:", 100*len(det2[det2<0])/len(det2))
+        
+        # convolve det_F and TrC to get their average value over window for each voxel        
+        # Ic =  torch.nn.functional.conv3d(Ic, sum_filt, stride=stride, padding=padding)
+        # J =  torch.nn.functional.conv3d(J, sum_filt, stride=stride, padding=padding)
+        # vol_change =  torch.nn.functional.conv3d(vol_change, sum_filt, stride=stride, padding=padding)
+        
+        J[J<=0]=1e-6
+        
+        stretch = (Tr*torch.exp(-J+1)-3)
+        vol_change = (J-1)**2 #torch.exp(-J+1)+J-2
+        
+        mu = 0.167*mu/mu.mean()
+        lambda_ = 0.833*lambda_/lambda_.mean()
+        
+        
+        U = (mu/2) * stretch + (lambda_/2) * vol_change
+        
+        # save the first and second term of the energy, which represent the amount of deformation and the volume change, respectively
+        np.save("strech_c.npy", (Tr-3).detach().cpu().numpy())
+        np.save("volumechange_c.npy", vol_change.detach().cpu().numpy())
+        
+        # return the loss and the first and second term of the energy, if return_maps==True
+        if self.return_maps == True:
+            return torch.mean(U), stretch.detach().cpu().numpy(), vol_change.detach().cpu().numpy()
+        else:
+            return torch.mean(U)
+        
+class jacobian_map(torch.nn.Module):
+    def __init__(self, window = 3):
+        super(jacobian_map, self).__init__()
+        self.window = window
+    def forward(self, y_pred):
+        
+        # Define the window size for the convolution
+        win = [self.window] * 3
+        pad_no = math.floor(win[0]/2)
+        stride = (1,1,1)
+        padding = (pad_no, pad_no, pad_no)
+        
+        # Create a filter that will be used to convolve the deformation field
+        sum_filt = torch.ones([1,1, *win]).to("cuda")
+        sum_filt = sum_filt/(self.window**3) # divide by window^3 to get the average over the window
+        
+        dy = torch.abs(y_pred[:, :, 1:, :-1, :-1] - y_pred[:, :, :-1, :-1, :-1]) 
+        dx = torch.abs(y_pred[:, :, :-1, 1:, :-1] - y_pred[:, :, :-1, :-1, :-1]) 
+        dz = torch.abs(y_pred[:, :, :-1, :-1, 1:] - y_pred[:, :, :-1, :-1, :-1])
+        
+        # convolve the gradients to get the partial derivatives of the deformation fields
+        dxdx = torch.nn.functional.conv3d(dx[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dX
+        dxdy = torch.nn.functional.conv3d(dy[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dY
+        dxdz = torch.nn.functional.conv3d(dz[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dZ
+        dydx = torch.nn.functional.conv3d(dx[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dX
+        dydy = torch.nn.functional.conv3d(dy[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dY
+        dydz = torch.nn.functional.conv3d(dz[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dZ
+        dzdx = torch.nn.functional.conv3d(dx[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dX
+        dzdy = torch.nn.functional.conv3d(dy[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dY
+        dzdz = torch.nn.functional.conv3d(dz[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dZ
+
+
+        
+        # compute the determinant of the deformation gradient tensor
+        det_1 = (dxdx+1) * ((dydy+1) * (dzdz+1) - dydz * dzdy)
+        det_2 = -dxdy * (dydx * (dzdz+1) - dydz * dzdx)
+        det_3 = dxdz * (dydx * dzdy - (dydy+1) * dzdx)
+        J = det_1 + det_2 + det_3
+
+        return np.squeeze(J.detach().cpu().numpy())

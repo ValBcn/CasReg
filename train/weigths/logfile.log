@@ -402,3 +402,405 @@ max flow :  [0.252, 3.526, 0.873, 0.175, 4.042]
 
  
 Iter 100 of 100 loss -0.1529, Img Sim: -0.158105, Reg: 0.005207, Learning Rate: 0.000298
+Training Starts
+max flow :  [0.0, 0.0, 0.0, 0.0, 0.0]
+
+ 
+Iter 1 of 100 loss -0.0977, Img Sim: -0.097750, Reg: 0.000000, Learning Rate: 0.000298
+max flow :  [0.002, 0.002, 0.003, 0.003, 0.004]
+
+ 
+Iter 2 of 100 loss -0.0747, Img Sim: -0.074658, Reg: 0.000000, Learning Rate: 0.000298
+max flow :  [0.005, 0.004, 0.005, 0.006, 0.012]
+
+ 
+Iter 3 of 100 loss -0.1142, Img Sim: -0.114236, Reg: 0.000000, Learning Rate: 0.000298
+max flow :  [0.01, 0.007, 0.009, 0.011, 0.023]
+
+ 
+Iter 4 of 100 loss -0.0894, Img Sim: -0.089383, Reg: 0.000001, Learning Rate: 0.000298
+max flow :  [0.017, 0.011, 0.014, 0.018, 0.043]
+
+ 
+Iter 5 of 100 loss -0.1401, Img Sim: -0.140113, Reg: 0.000002, Learning Rate: 0.000298
+max flow :  [0.025, 0.016, 0.021, 0.026, 0.062]
+
+ 
+Iter 6 of 100 loss -0.0551, Img Sim: -0.055057, Reg: 0.000005, Learning Rate: 0.000298
+max flow :  [0.047, 0.025, 0.035, 0.04, 0.118]
+
+ 
+Iter 7 of 100 loss -0.0835, Img Sim: -0.083488, Reg: 0.000013, Learning Rate: 0.000298
+max flow :  [0.106, 0.047, 0.078, 0.075, 0.259]
+
+ 
+Iter 8 of 100 loss -0.1389, Img Sim: -0.138914, Reg: 0.000049, Learning Rate: 0.000298
+max flow :  [0.193, 0.081, 0.141, 0.119, 0.48]
+
+ 
+Iter 9 of 100 loss -0.0928, Img Sim: -0.092941, Reg: 0.000172, Learning Rate: 0.000298
+max flow :  [0.232, 0.156, 0.185, 0.144, 0.472]
+
+ 
+Iter 10 of 100 loss -0.0930, Img Sim: -0.093225, Reg: 0.000212, Learning Rate: 0.000298
+max flow :  [0.356, 0.183, 0.209, 0.182, 0.471]
+
+ 
+Iter 11 of 100 loss -0.1511, Img Sim: -0.151396, Reg: 0.000268, Learning Rate: 0.000298
+max flow :  [0.489, 0.348, 0.226, 0.181, 0.369]
+
+ 
+Iter 12 of 100 loss -0.1058, Img Sim: -0.106117, Reg: 0.000308, Learning Rate: 0.000298
+max flow :  [0.47, 0.463, 0.16, 0.163, 0.368]
+
+ 
+Iter 13 of 100 loss -0.1267, Img Sim: -0.126926, Reg: 0.000267, Learning Rate: 0.000298
+max flow :  [0.458, 0.735, 0.116, 0.128, 0.262]
+
+ 
+Iter 14 of 100 loss -0.0748, Img Sim: -0.075081, Reg: 0.000254, Learning Rate: 0.000298
+max flow :  [0.534, 0.912, 0.117, 0.132, 0.241]
+
+ 
+Iter 15 of 100 loss -0.1479, Img Sim: -0.148219, Reg: 0.000282, Learning Rate: 0.000298
+max flow :  [0.504, 0.802, 0.09, 0.113, 0.193]
+
+ 
+Iter 16 of 100 loss -0.1083, Img Sim: -0.108506, Reg: 0.000232, Learning Rate: 0.000298
+max flow :  [0.661, 0.714, 0.1, 0.135, 0.224]
+
+ 
+Iter 17 of 100 loss -0.0928, Img Sim: -0.093038, Reg: 0.000223, Learning Rate: 0.000298
+max flow :  [0.609, 0.612, 0.094, 0.126, 0.195]
+
+ 
+Iter 18 of 100 loss -0.1099, Img Sim: -0.110079, Reg: 0.000167, Learning Rate: 0.000298
+max flow :  [0.657, 0.654, 0.096, 0.134, 0.214]
+
+ 
+Iter 19 of 100 loss -0.0936, Img Sim: -0.093749, Reg: 0.000150, Learning Rate: 0.000298
+max flow :  [0.602, 0.506, 0.088, 0.128, 0.234]
+
+ 
+Iter 20 of 100 loss -0.1061, Img Sim: -0.106197, Reg: 0.000097, Learning Rate: 0.000298
+max flow :  [0.368, 0.347, 0.082, 0.12, 0.218]
+
+ 
+Iter 21 of 100 loss -0.1269, Img Sim: -0.126957, Reg: 0.000047, Learning Rate: 0.000298
+max flow :  [0.441, 0.318, 0.101, 0.148, 0.275]
+
+ 
+Iter 22 of 100 loss -0.1354, Img Sim: -0.135427, Reg: 0.000065, Learning Rate: 0.000298
+max flow :  [0.408, 0.232, 0.095, 0.144, 0.246]
+
+ 
+Iter 23 of 100 loss -0.1250, Img Sim: -0.125060, Reg: 0.000065, Learning Rate: 0.000298
+max flow :  [0.447, 0.216, 0.113, 0.167, 0.246]
+
+ 
+Iter 24 of 100 loss -0.0820, Img Sim: -0.082105, Reg: 0.000074, Learning Rate: 0.000298
+max flow :  [0.676, 0.221, 0.138, 0.211, 0.268]
+
+ 
+Iter 25 of 100 loss -0.1393, Img Sim: -0.139488, Reg: 0.000142, Learning Rate: 0.000298
+max flow :  [0.886, 0.221, 0.147, 0.215, 0.253]
+
+ 
+Iter 26 of 100 loss -0.1005, Img Sim: -0.100664, Reg: 0.000182, Learning Rate: 0.000298
+max flow :  [1.064, 0.259, 0.162, 0.234, 0.305]
+
+ 
+Iter 27 of 100 loss -0.0920, Img Sim: -0.092227, Reg: 0.000209, Learning Rate: 0.000298
+max flow :  [0.734, 0.241, 0.153, 0.197, 0.27]
+
+ 
+Iter 28 of 100 loss -0.1065, Img Sim: -0.106592, Reg: 0.000126, Learning Rate: 0.000298
+max flow :  [0.748, 0.279, 0.146, 0.187, 0.345]
+
+ 
+Iter 29 of 100 loss -0.1201, Img Sim: -0.120214, Reg: 0.000106, Learning Rate: 0.000298
+max flow :  [0.761, 0.316, 0.147, 0.182, 0.413]
+
+ 
+Iter 30 of 100 loss -0.0854, Img Sim: -0.085498, Reg: 0.000085, Learning Rate: 0.000298
+max flow :  [0.745, 0.371, 0.161, 0.191, 0.526]
+
+ 
+Iter 31 of 100 loss -0.0687, Img Sim: -0.068811, Reg: 0.000098, Learning Rate: 0.000298
+max flow :  [0.744, 0.453, 0.208, 0.218, 0.712]
+
+ 
+Iter 32 of 100 loss -0.0860, Img Sim: -0.086130, Reg: 0.000174, Learning Rate: 0.000298
+max flow :  [0.512, 0.362, 0.196, 0.207, 0.623]
+
+ 
+Iter 33 of 100 loss -0.1242, Img Sim: -0.124345, Reg: 0.000151, Learning Rate: 0.000298
+max flow :  [0.696, 0.555, 0.272, 0.259, 0.802]
+
+ 
+Iter 34 of 100 loss -0.0717, Img Sim: -0.071884, Reg: 0.000205, Learning Rate: 0.000298
+max flow :  [0.641, 0.554, 0.254, 0.245, 0.744]
+
+ 
+Iter 35 of 100 loss -0.1677, Img Sim: -0.167834, Reg: 0.000171, Learning Rate: 0.000298
+max flow :  [0.538, 0.562, 0.27, 0.245, 0.755]
+
+ 
+Iter 36 of 100 loss -0.0888, Img Sim: -0.088988, Reg: 0.000196, Learning Rate: 0.000298
+max flow :  [0.766, 0.841, 0.353, 0.291, 1.024]
+
+ 
+Iter 37 of 100 loss -0.1496, Img Sim: -0.149885, Reg: 0.000267, Learning Rate: 0.000298
+max flow :  [0.612, 0.617, 0.417, 0.337, 0.722]
+
+ 
+Iter 38 of 100 loss -0.0986, Img Sim: -0.098936, Reg: 0.000323, Learning Rate: 0.000298
+max flow :  [0.629, 0.616, 0.492, 0.389, 0.625]
+
+ 
+Iter 39 of 100 loss -0.0754, Img Sim: -0.075765, Reg: 0.000358, Learning Rate: 0.000298
+max flow :  [0.986, 0.771, 0.525, 0.382, 0.676]
+
+ 
+Iter 40 of 100 loss -0.1269, Img Sim: -0.127296, Reg: 0.000412, Learning Rate: 0.000298
+max flow :  [1.099, 0.924, 0.587, 0.469, 0.587]
+
+ 
+Iter 41 of 100 loss -0.0775, Img Sim: -0.077915, Reg: 0.000406, Learning Rate: 0.000298
+max flow :  [1.304, 1.03, 0.472, 0.393, 0.542]
+
+ 
+Iter 42 of 100 loss -0.1062, Img Sim: -0.106511, Reg: 0.000348, Learning Rate: 0.000298
+max flow :  [1.322, 1.257, 0.334, 0.321, 0.49]
+
+ 
+Iter 43 of 100 loss -0.1307, Img Sim: -0.131156, Reg: 0.000453, Learning Rate: 0.000298
+max flow :  [1.476, 1.603, 0.294, 0.298, 0.578]
+
+ 
+Iter 44 of 100 loss -0.1195, Img Sim: -0.120107, Reg: 0.000581, Learning Rate: 0.000298
+max flow :  [1.291, 1.422, 0.261, 0.303, 0.656]
+
+ 
+Iter 45 of 100 loss -0.1339, Img Sim: -0.134268, Reg: 0.000403, Learning Rate: 0.000298
+max flow :  [0.878, 0.962, 0.281, 0.329, 0.646]
+
+ 
+Iter 46 of 100 loss -0.1691, Img Sim: -0.169360, Reg: 0.000227, Learning Rate: 0.000298
+max flow :  [0.775, 0.776, 0.277, 0.337, 0.669]
+
+ 
+Iter 47 of 100 loss -0.1388, Img Sim: -0.138967, Reg: 0.000185, Learning Rate: 0.000298
+max flow :  [0.678, 0.629, 0.281, 0.35, 0.599]
+
+ 
+Iter 48 of 100 loss -0.1409, Img Sim: -0.141104, Reg: 0.000232, Learning Rate: 0.000298
+max flow :  [0.693, 0.58, 0.283, 0.363, 0.637]
+
+ 
+Iter 49 of 100 loss -0.1370, Img Sim: -0.137249, Reg: 0.000292, Learning Rate: 0.000298
+max flow :  [0.574, 0.509, 0.244, 0.305, 0.605]
+
+ 
+Iter 50 of 100 loss -0.1408, Img Sim: -0.141038, Reg: 0.000251, Learning Rate: 0.000298
+max flow :  [0.556, 0.499, 0.172, 0.244, 0.614]
+
+ 
+Iter 51 of 100 loss -0.1049, Img Sim: -0.104977, Reg: 0.000111, Learning Rate: 0.000298
+max flow :  [0.519, 0.463, 0.185, 0.241, 0.575]
+
+ 
+Iter 52 of 100 loss -0.1434, Img Sim: -0.143504, Reg: 0.000116, Learning Rate: 0.000298
+max flow :  [0.606, 0.483, 0.127, 0.193, 0.556]
+
+ 
+Iter 53 of 100 loss -0.0721, Img Sim: -0.072181, Reg: 0.000080, Learning Rate: 0.000298
+max flow :  [0.63, 0.484, 0.153, 0.203, 0.542]
+
+ 
+Iter 54 of 100 loss -0.1069, Img Sim: -0.107025, Reg: 0.000082, Learning Rate: 0.000298
+max flow :  [0.711, 0.512, 0.121, 0.182, 0.539]
+
+ 
+Iter 55 of 100 loss -0.1263, Img Sim: -0.126409, Reg: 0.000067, Learning Rate: 0.000298
+max flow :  [0.718, 0.505, 0.119, 0.179, 0.532]
+
+ 
+Iter 56 of 100 loss -0.0837, Img Sim: -0.083790, Reg: 0.000079, Learning Rate: 0.000298
+max flow :  [0.64, 0.487, 0.134, 0.194, 0.536]
+
+ 
+Iter 57 of 100 loss -0.0670, Img Sim: -0.067101, Reg: 0.000066, Learning Rate: 0.000298
+max flow :  [0.741, 0.536, 0.115, 0.166, 0.526]
+
+ 
+Iter 58 of 100 loss -0.1441, Img Sim: -0.144202, Reg: 0.000102, Learning Rate: 0.000298
+max flow :  [0.762, 0.577, 0.14, 0.196, 0.629]
+
+ 
+Iter 59 of 100 loss -0.0970, Img Sim: -0.097056, Reg: 0.000088, Learning Rate: 0.000298
+max flow :  [0.797, 0.584, 0.125, 0.194, 0.641]
+
+ 
+Iter 60 of 100 loss -0.1307, Img Sim: -0.130814, Reg: 0.000105, Learning Rate: 0.000298
+max flow :  [0.883, 0.698, 0.125, 0.24, 0.812]
+
+ 
+Iter 61 of 100 loss -0.1141, Img Sim: -0.114233, Reg: 0.000162, Learning Rate: 0.000298
+max flow :  [0.908, 0.795, 0.151, 0.258, 0.946]
+
+ 
+Iter 62 of 100 loss -0.1585, Img Sim: -0.158693, Reg: 0.000201, Learning Rate: 0.000298
+max flow :  [0.842, 0.757, 0.124, 0.234, 0.805]
+
+ 
+Iter 63 of 100 loss -0.1207, Img Sim: -0.120891, Reg: 0.000187, Learning Rate: 0.000298
+max flow :  [0.924, 0.927, 0.142, 0.243, 0.985]
+
+ 
+Iter 64 of 100 loss -0.1494, Img Sim: -0.149650, Reg: 0.000249, Learning Rate: 0.000298
+max flow :  [0.995, 0.926, 0.145, 0.276, 0.884]
+
+ 
+Iter 65 of 100 loss -0.1297, Img Sim: -0.129921, Reg: 0.000257, Learning Rate: 0.000298
+max flow :  [0.943, 0.834, 0.129, 0.273, 0.737]
+
+ 
+Iter 66 of 100 loss -0.1139, Img Sim: -0.114103, Reg: 0.000246, Learning Rate: 0.000298
+max flow :  [1.045, 0.823, 0.142, 0.295, 0.718]
+
+ 
+Iter 67 of 100 loss -0.1342, Img Sim: -0.134452, Reg: 0.000278, Learning Rate: 0.000298
+max flow :  [1.201, 0.904, 0.184, 0.476, 0.868]
+
+ 
+Iter 68 of 100 loss -0.1046, Img Sim: -0.104955, Reg: 0.000397, Learning Rate: 0.000298
+max flow :  [0.927, 0.82, 0.218, 0.609, 0.919]
+
+ 
+Iter 69 of 100 loss -0.0974, Img Sim: -0.098001, Reg: 0.000604, Learning Rate: 0.000298
+max flow :  [1.17, 1.041, 0.233, 0.873, 1.157]
+
+ 
+Iter 70 of 100 loss -0.1071, Img Sim: -0.108614, Reg: 0.001477, Learning Rate: 0.000298
+max flow :  [0.944, 0.867, 0.246, 0.955, 1.044]
+
+ 
+Iter 71 of 100 loss -0.1387, Img Sim: -0.139953, Reg: 0.001220, Learning Rate: 0.000298
+max flow :  [0.974, 0.85, 0.323, 0.82, 1.077]
+
+ 
+Iter 72 of 100 loss -0.0993, Img Sim: -0.100458, Reg: 0.001112, Learning Rate: 0.000298
+max flow :  [0.902, 0.835, 0.359, 0.929, 1.072]
+
+ 
+Iter 73 of 100 loss -0.1189, Img Sim: -0.119962, Reg: 0.001104, Learning Rate: 0.000298
+max flow :  [1.02, 1.007, 0.387, 0.908, 1.193]
+
+ 
+Iter 74 of 100 loss -0.0811, Img Sim: -0.082449, Reg: 0.001328, Learning Rate: 0.000298
+max flow :  [0.924, 0.911, 0.356, 0.577, 1.11]
+
+ 
+Iter 75 of 100 loss -0.1195, Img Sim: -0.120284, Reg: 0.000818, Learning Rate: 0.000298
+max flow :  [1.043, 1.14, 0.378, 0.703, 1.326]
+
+ 
+Iter 76 of 100 loss -0.1178, Img Sim: -0.118668, Reg: 0.000906, Learning Rate: 0.000298
+max flow :  [0.848, 0.868, 0.402, 0.837, 1.116]
+
+ 
+Iter 77 of 100 loss -0.0968, Img Sim: -0.097915, Reg: 0.001136, Learning Rate: 0.000298
+max flow :  [0.71, 0.73, 0.359, 0.705, 0.907]
+
+ 
+Iter 78 of 100 loss -0.1115, Img Sim: -0.112182, Reg: 0.000659, Learning Rate: 0.000298
+max flow :  [0.82, 0.771, 0.38, 1.051, 0.825]
+
+ 
+Iter 79 of 100 loss -0.1231, Img Sim: -0.124604, Reg: 0.001492, Learning Rate: 0.000298
+max flow :  [0.666, 0.588, 0.321, 1.205, 0.683]
+
+ 
+Iter 80 of 100 loss -0.1162, Img Sim: -0.117063, Reg: 0.000875, Learning Rate: 0.000298
+max flow :  [0.678, 0.636, 0.335, 1.119, 0.726]
+
+ 
+Iter 81 of 100 loss -0.0969, Img Sim: -0.099664, Reg: 0.002771, Learning Rate: 0.000298
+max flow :  [0.564, 0.547, 0.271, 1.41, 0.719]
+
+ 
+Iter 82 of 100 loss -0.1527, Img Sim: -0.155537, Reg: 0.002876, Learning Rate: 0.000298
+max flow :  [0.538, 0.529, 0.22, 1.266, 0.759]
+
+ 
+Iter 83 of 100 loss -0.1087, Img Sim: -0.111559, Reg: 0.002846, Learning Rate: 0.000298
+max flow :  [0.56, 0.61, 0.378, 1.646, 0.663]
+
+ 
+Iter 84 of 100 loss -0.1215, Img Sim: -0.125613, Reg: 0.004093, Learning Rate: 0.000298
+max flow :  [0.455, 0.477, 0.274, 1.594, 0.632]
+
+ 
+Iter 85 of 100 loss -0.1347, Img Sim: -0.136396, Reg: 0.001665, Learning Rate: 0.000298
+max flow :  [0.493, 0.474, 0.244, 2.557, 0.698]
+
+ 
+Iter 86 of 100 loss -0.1448, Img Sim: -0.147790, Reg: 0.002955, Learning Rate: 0.000298
+max flow :  [0.437, 0.429, 0.156, 1.82, 0.715]
+
+ 
+Iter 87 of 100 loss -0.1210, Img Sim: -0.124571, Reg: 0.003593, Learning Rate: 0.000298
+max flow :  [0.652, 0.54, 0.31, 2.096, 0.629]
+
+ 
+Iter 88 of 100 loss -0.1653, Img Sim: -0.171767, Reg: 0.006493, Learning Rate: 0.000298
+max flow :  [0.589, 0.437, 0.249, 1.557, 0.562]
+
+ 
+Iter 89 of 100 loss -0.0619, Img Sim: -0.069952, Reg: 0.008082, Learning Rate: 0.000298
+max flow :  [0.598, 0.392, 0.114, 1.698, 0.466]
+
+ 
+Iter 90 of 100 loss -0.1544, Img Sim: -0.157232, Reg: 0.002796, Learning Rate: 0.000298
+max flow :  [0.509, 0.332, 0.116, 1.175, 0.508]
+
+ 
+Iter 91 of 100 loss -0.1021, Img Sim: -0.104073, Reg: 0.001942, Learning Rate: 0.000298
+max flow :  [0.804, 0.426, 0.226, 1.912, 0.603]
+
+ 
+Iter 92 of 100 loss -0.1307, Img Sim: -0.135207, Reg: 0.004535, Learning Rate: 0.000298
+max flow :  [0.77, 0.407, 0.319, 1.33, 0.473]
+
+ 
+Iter 93 of 100 loss -0.1566, Img Sim: -0.158409, Reg: 0.001802, Learning Rate: 0.000298
+max flow :  [0.813, 0.378, 0.319, 1.108, 0.559]
+
+ 
+Iter 94 of 100 loss -0.1459, Img Sim: -0.147842, Reg: 0.001987, Learning Rate: 0.000298
+max flow :  [0.82, 0.366, 0.378, 1.061, 0.546]
+
+ 
+Iter 95 of 100 loss -0.1252, Img Sim: -0.127110, Reg: 0.001892, Learning Rate: 0.000298
+max flow :  [0.96, 0.413, 0.367, 1.445, 0.634]
+
+ 
+Iter 96 of 100 loss -0.1618, Img Sim: -0.165693, Reg: 0.003858, Learning Rate: 0.000298
+max flow :  [0.854, 0.422, 0.488, 0.933, 0.757]
+
+ 
+Iter 97 of 100 loss -0.1622, Img Sim: -0.164392, Reg: 0.002177, Learning Rate: 0.000298
+max flow :  [0.88, 0.547, 0.544, 1.71, 0.991]
+
+ 
+Iter 98 of 100 loss -0.1337, Img Sim: -0.136552, Reg: 0.002805, Learning Rate: 0.000298
+max flow :  [1.057, 0.635, 0.771, 2.158, 0.997]
+
+ 
+Iter 99 of 100 loss -0.1225, Img Sim: -0.126580, Reg: 0.004057, Learning Rate: 0.000298
+max flow :  [0.985, 0.761, 0.821, 1.929, 1.235]
+
+ 
+Iter 100 of 100 loss -0.1519, Img Sim: -0.156811, Reg: 0.004865, Learning Rate: 0.000298
+max flow :  [1.152, 0.689, 0.764, 2.116, 1.03]

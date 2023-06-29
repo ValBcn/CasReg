@@ -81,6 +81,8 @@ if __name__ == "__main__":
                         help="Mode of the cascade training, parallel or cascade")
     parser.add_argument('--contracted', type=int, required = False, default = 1,
                         help="Contracted architecture or not (1/0)")
+    parser.add_argument('--regularization', type=str, required = True, default = "grad",
+                        help="Which regularization of the deformation, can be grad or NHE (neo-hookean energy strain")
     
     args = parser.parse_args()
 
@@ -137,11 +139,17 @@ if __name__ == "__main__":
         
         # Loss                                                                                                                                                                                                    
         if args.supervised == 0:
-            criterions = [losses.NCC().forward, losses.Grad3d(penalty='l2').forward]
+            if args.regularization == "NHE":
+                if args.with_maps == False:
+                    loss_list = [losses.NCC().forward, losses.local_grad_neo_hookean(mu=0.11,lambda_=1.1).forward]
+                else:
+                    loss_list = [losses.NCC().forward, losses.local_grad_neo_hookean_with_maps().forward]
+            elif args.regularization == "grad":
+                loss_list = [losses.NCC().forward, losses.Grad3d(penalty='l2').forward]
             weights = [1.,args.lambda_]
         if args.supervised == 1:
-            criterions = [losses.NCC().forward, losses.Grad3d(penalty='l2').forward, losses.Dice_Weighted(np.ones(args.nb_labels)).loss]
-            weights = [1.,args.lambda_,args.dice_weight]
+            loss_list = [losses.NCC().forward, losses.Grad3d(penalty='l2').forward, losses.Dice_Weighted(np.ones(len(weights_dice))).loss]
+            weights = [1.,0.1,1.]
         
         print('Training Starts')
         '''                                                                                                                                                                                                       
@@ -173,7 +181,7 @@ if __name__ == "__main__":
             loss = 0
             loss_vals = []
             
-            for n, loss_function in enumerate(criterions):
+            for n, loss_function in enumerate(loss_list):
                 if n == 0:
                     curr_loss = loss_function(output[n], fixed) * weights[n]
                 if n == 1:

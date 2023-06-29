@@ -270,13 +270,14 @@ class CasReg(nn.Module):
     """
     def __init__(self,
                  inshape,
+                 batch_size,
                  n_casc=2,
                  nb_unet_features=((16, 32, 32, 32), (32, 32, 32, 32, 32, 16, 16)),
                  nb_unet_levels=None,
                  unet_feat_mult=1,
                  mode="cascade",
                  layer_mode="contracted",
-                 nb_cascades=5,
+                 layer_sizes = [16,32,64,128],
                  use_probs=False):
         """
         Parameters:
@@ -292,9 +293,11 @@ class CasReg(nn.Module):
             bidir: Enable bidirectional cost function. Default is False.
             use_probs: Use probabilities in flow field. Default is False.
         """
+        
         super().__init__()
 
         self.n_casc = n_casc
+        self.batch_size = batch_size
         self.inshape = inshape
         self.nb_unet_features = nb_unet_features
         self.nb_unet_levels = nb_unet_levels
@@ -302,7 +305,9 @@ class CasReg(nn.Module):
         # internal flag indicating whether to return flow or integrated warp during inference
         self.training = True
         self.mode = mode
-        self.nb_cascades = nb_cascades
+        self.layer_sizes = layer_sizes
+        self.use_probs = use_probs
+        self.layer_mode = layer_mode
 
         # ensure correct dimensionality
         ndims = len(inshape)
@@ -311,14 +316,21 @@ class CasReg(nn.Module):
         self.models = nn.ModuleList()
         self.flows = nn.ModuleList()
 
-        for i in range(self.nb_cascades):
+        for layer_size in self.layer_sizes:
             # configure core unet model
             if layer_mode == "original":
-                self.nb_unet_features = ((16, 32, 32, 32), (32, 32, 32, 32, 32, 16, 16))
+                self.nb_unet_features = ((int(layer_size/2.), layer_size, layer_size, layer_size), (layer_size, layer_size, layer_size, layer_size, layer_size, int(layer_size/2.), int(layer_size/2.)))
             if layer_mode == "contracted":
-                self.nb_unet_features = ((16,32,64,64),(64,64,32,16,16))
+                self.nb_unet_features = ((16,32,64,64,128),(128,64,64,32,16,16))
+                if layer_mode == "contracted_cardiac":
+                    self.nb_unet_features = ((16,32,64,64,128),(128,64,64,32,16,16))
+            
+                
             self.unet_model = Unet(inshape,nb_features=self.nb_unet_features,nb_levels=nb_unet_levels,feat_mult=unet_feat_mult)
-
+            
+            # Add batch normalization to each convolutional layer
+            self.add_batchnorm()
+            
             # configure unet to flow field layer
             Conv = getattr(nn, 'Conv%dd' % ndims)
             self.flow = Conv(self.unet_model.dec_nf[-1], ndims, kernel_size=3, padding=1)
@@ -329,17 +341,22 @@ class CasReg(nn.Module):
 
             self.models.append(self.unet_model)
             self.flows.append(self.flow)
+            
+            self.transformer = SpatialTransformer(inshape).cuda()
 
-
-        # probabilities are not supported in pytorch
-        if use_probs:
-            raise NotImplementedError('Flow variance has not been implemented in pytorch - set use_probs to False')
-
-        # configure transformer
-        self.transformer = SpatialTransformer(inshape).cuda()
-        # self.transformer_seg = SpatialTransformer(tuple(ti/2 for ti in inshape), mode = "nearest")
-        #self.Bspline_trans = transformation.CubicBSplineFFDTransform(ndim=3, svf=True, cps=(3,3,3))
-
+    def add_batchnorm(self):
+        """
+        Add batch normalization to each convolutional layer of the unet model
+        """
+        for i, m in enumerate(self.unet_model.modules()):
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv3d):
+                m.weight = nn.Parameter(nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu'))
+                m.bias = nn.Parameter(nn.init.constant_(m.bias, 0))
+                nn.init.constant_(m.bias, 0)
+                modules = nn.ModuleList()
+                modules.append(nn.BatchNorm2d(m.out_channels))
+        self.unet_model.modules = modules
+        
     def forward(self, x: torch.Tensor):
         '''
         Parameters:
@@ -349,19 +366,18 @@ class CasReg(nn.Module):
         '''
 
         # concatenate inputs and propagate unet
-        
         fixed = x[:, 1:2, ...]
         source = x[:, 0:1, :, :]
         flow_list = []
-        
-        # x = torch.cat((seg_n,img),dim=1)
-        
+                
         flow_list = []
         warped_list = []
-        sum_flow = torch.zeros((1,3,*fixed.shape[-3:])).cuda()
+        sum_flow = torch.zeros((self.batch_size,3,*fixed.shape[-3:])).cuda()
+        if self.layer_mode == "contracted_cardiac":
+            sum_flow = torch.zeros((1,2,128,128)).cuda()
         max_flow_list = []
         
-        for casc in range(self.nb_cascades):
+        for casc in range(len(self.layer_sizes)):
             x = self.models[casc].cuda()(x)
             # transform into flow field
             flow_field = self.flows[casc].cuda()(x)
@@ -370,11 +386,8 @@ class CasReg(nn.Module):
                 x = torch.concat((source,fixed),dim=1)
             if self.mode == "cascade":
                 sum_flow += flow_field
-                warped = self.transformer(source, flow_field)
+                warped = self.transformer(source, sum_flow)
                 warped_list.append(warped)
-                source = warped
-                # print("warped shape :", warped.size())
-                # print("fixed shape = ", fixed.size())
                 x = torch.cat((warped,fixed),dim=1)
                 
         
