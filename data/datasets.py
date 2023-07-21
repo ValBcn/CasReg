@@ -3,6 +3,7 @@ import torch, sys
 from torch.utils.data import Dataset
 from .data_utils import pkload
 import matplotlib.pyplot as plt
+import random
 
 import numpy as np
 
@@ -35,6 +36,42 @@ def volgen(vol_names, transforms, batch_size=2, get_file_name=False):
     if get_file_name == True:
         yield torch.tensor(vol1,requires_grad=True).cuda(), torch.tensor(vol2,requires_grad=True).cuda(), torch.tensor(seg1,requires_grad=True).cuda(), torch.tensor(seg2,requires_grad=True).cuda(), str(vol_names[indices[0]]).split("/")[-1], str(vol_names[indices[1]]).split("/")[-1]
 
+
+def volgen_acdc_3D(vol_names, transforms, batch_size=1, get_file_name=False):
+    
+    # convert glob path to filenames
+   if isinstance(vol_names, str):
+       if os.path.isdir(vol_names):
+           vol_names = os.path.join(vol_names, '*')
+       vol_names = glob.glob(vol_names)
+
+   patient_ids = sorted(set([os.path.basename(name).split('_')[0] for name in vol_names]))
+   while len(patient_ids) < batch_size:
+       patient_ids *= 2
+   patient_id = random.choice(patient_ids)
+   print("patient id : ", patient_id)
+   filenames = [name for name in vol_names if os.path.basename(name).startswith(patient_id)]
+   assert len(filenames) > 1, f"patient {patient_id} has less than 2 frames"
+   while len(filenames) < 2:
+       filenames *= 2
+   frame_indices = np.random.randint(len(filenames), size=2)
+   while frame_indices[0] == frame_indices[1]:
+       frame_indices = np.random.randint(len(filenames), size=2)
+   print("frames :", frame_indices)
+
+   vols = []
+   segs = []
+   for i, idx in enumerate(frame_indices):
+       filename = filenames[idx]
+       vol = np.load(filename)["vol"]
+       seg = np.load(filename)["vol"]
+       vol, seg = vol[None,None, ...], seg[None,None, ...]
+       vol,seg = transforms([vol, seg])
+       vols.append(np.ascontiguousarray(vol))
+       segs.append(np.ascontiguousarray(seg))
+   print("...too long ?")
+       
+   yield torch.tensor(vols[0], requires_grad=True).cuda(), torch.tensor(vols[1], requires_grad=True).cuda()
 
 def volgen_one(vol_names, transforms, batch_size=2, get_file_name=False):
     # convert glob path to filenames
