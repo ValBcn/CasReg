@@ -39,7 +39,7 @@ def reshape(orig_img, append_value=-1024, new_shape=(512, 512, 512)):
 
 def extract_nonint_region(image, mask = None, outside_value=0, coords = False):
     """
-    Resizing image around a specified region (i.e. nonzero region)
+    Resizing image around a specified region (i.e. nonzero region).
     Args:
         image:
         mask: a segmentation labeled mask that is the same shaped as 'image' (optional; default: None)
