@@ -357,7 +357,7 @@ class NCC_full(torch.nn.Module):
         assert ndims in [1, 2, 3], "volumes should be 1 to 3 dimensions. found: %d" % ndims
 
         # set window size
-        win = [9] * ndims if self.win is None else self.win
+        win = [7] * ndims if self.win is None else self.win
 
         # compute filters
         sum_filt = torch.ones([1, 1, *win]).to("cuda")
@@ -1155,9 +1155,9 @@ def jacobian_determinant_vxm(disp):
         return dfdx[..., 0] * dfdy[..., 1] - dfdy[..., 0] * dfdx[..., 1]
 
 class local_grad_neo_hookean(torch.nn.Module):
-    def __init__(self, mu=0.2, lambda_=1., return_maps=False, window = 3, mode = "exp", facx = None):
+    def __init__(self, ratio=5, return_maps=False, window = 3, mode = "exp", facx = None):
         super(local_grad_neo_hookean, self).__init__()
-        self.mu = mu
+        self.ratio = ratio
         self.lambda_ = lambda_
         self.return_maps = return_maps
         self.window = window
@@ -1220,21 +1220,15 @@ class local_grad_neo_hookean(torch.nn.Module):
         grad = dx**2 + dy**2 + dz **2
 
         # compute the determinant of the transformation's Jacobian to check if the transformation is invertible
-        # det_J, Tr = jacobian_determinant_vxm(y_pred.detach().cpu().numpy())
         det_J = J.flatten()
         neg = len(det_J[det_J<0])
         print("percent neg jac :", 100*neg/len(det_J))
         
-        # disp = np.zeros((3,128,128,128))
         
         det2 = jacobian_determinant_vxm(y_pred[0,...].detach().cpu().numpy())
         det2 = det2.flatten()
         # print("percent neg jac 2:", 100*len(det2[det2<0])/len(det2))
         
-        # convolve det_F and TrC to get their average value over window for each voxel        
-        # Ic =  torch.nn.functional.conv3d(Ic, sum_filt, stride=stride, padding=padding)
-        # J =  torch.nn.functional.conv3d(J, sum_filt, stride=stride, padding=padding)
-        # vol_change =  torch.nn.functional.conv3d(vol_change, sum_filt, stride=stride, padding=padding)
         
         if self.mode == "exp":
             stretch = Tr*torch.exp(-J+1)-3
@@ -1247,7 +1241,12 @@ class local_grad_neo_hookean(torch.nn.Module):
         vol_change = (J-1)**2 #torch.exp(-J+1)+J-2
         
         # compute the Neo-Hookean energy
-        U = (self.mu/2) * stretch + (self.lambda_/2) * vol_change
+        mu = 1
+        lambda_ = mu * self.ratio
+        mu = mu / (mu+lambda_)
+        lambda_ = lambda_ / (mu+lambda_)
+        
+        U = (mu/2) * stretch + (lambda_/2) * vol_change
         
         # save the first and second term of the energy, which represent the amount of deformation and the volume change, respectively
         np.save("strech_c.npy", stretch.detach().cpu().numpy())

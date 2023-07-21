@@ -277,7 +277,6 @@ class CasReg(nn.Module):
                  unet_feat_mult=1,
                  mode="cascade",
                  layer_mode="contracted",
-                 layer_sizes = [16,32,64,128],
                  use_probs=False):
         """
         Parameters:
@@ -305,7 +304,6 @@ class CasReg(nn.Module):
         # internal flag indicating whether to return flow or integrated warp during inference
         self.training = True
         self.mode = mode
-        self.layer_sizes = layer_sizes
         self.use_probs = use_probs
         self.layer_mode = layer_mode
 
@@ -316,10 +314,10 @@ class CasReg(nn.Module):
         self.models = nn.ModuleList()
         self.flows = nn.ModuleList()
 
-        for layer_size in self.layer_sizes:
+        for casc in range(self.n_casc):
             # configure core unet model
             if layer_mode == "original":
-                self.nb_unet_features = ((int(layer_size/2.), layer_size, layer_size, layer_size), (layer_size, layer_size, layer_size, layer_size, layer_size, int(layer_size/2.), int(layer_size/2.)))
+                self.nb_unet_features = ((16, 32, 32, 32), (32, 32, 32, 32, 32, 16, 16))
             if layer_mode == "contracted":
                 self.nb_unet_features = ((16,32,64,64,128),(128,64,64,32,16,16))
                 if layer_mode == "contracted_cardiac":
@@ -372,12 +370,12 @@ class CasReg(nn.Module):
                 
         flow_list = []
         warped_list = []
-        sum_flow = torch.zeros((self.batch_size,3,*fixed.shape[-3:])).cuda()
+        sum_flow = torch.zeros((1,3,128,128,128)).cuda()
         if self.layer_mode == "contracted_cardiac":
             sum_flow = torch.zeros((1,2,128,128)).cuda()
         max_flow_list = []
         
-        for casc in range(len(self.layer_sizes)):
+        for casc in range(self.n_casc):
             x = self.models[casc].cuda()(x)
             # transform into flow field
             flow_field = self.flows[casc].cuda()(x)
@@ -397,6 +395,7 @@ class CasReg(nn.Module):
         warped = self.transformer(source, sum_flow)
         
         return warped, sum_flow, flow_list , warped_list
+
 
 
 

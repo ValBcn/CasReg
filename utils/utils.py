@@ -345,9 +345,9 @@ def multi_channel_labels(label,nb_labels):
         multi_channel_label[...,i] = np.where(label!=i,multi_channel_label[...,i],1)
     return multi_channel_label
 
-def dice2(seg1, seg2, nlabels):
-    seg1 = multi_channel_labels(np.squeeze(seg1.detach().cpu().numpy()),nlabels)
-    seg2 = multi_channel_labels(np.squeeze(seg2.detach().cpu().numpy()),nlabels)
+def dice(seg1, seg2, nlabels):
+    # seg1 = multi_channel_labels(np.squeeze(seg1.detach().cpu().numpy()),nlabels)
+    # seg2 = multi_channel_labels(np.squeeze(seg2.detach().cpu().numpy()),nlabels)
     dice = np.sum(seg1.flatten()[seg2.flatten()==1])*2.0 / (np.sum(seg1.flatten()) + np.sum(seg2.flatten()))
     return dice
 

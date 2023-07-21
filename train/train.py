@@ -5,7 +5,6 @@ import torch
 import nibabel as nib
 from torchvision import transforms
 from torch import optim
-from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 import os, glob
 import argparse
@@ -15,7 +14,8 @@ torch.cuda.empty_cache()
 from torch.utils.tensorboard import SummaryWriter
 writer = SummaryWriter()
 
-sys.path.append("..")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from models import losses
 from utils.utils import *
@@ -73,16 +73,21 @@ if __name__ == "__main__":
     parser.add_argument("--dice_weight", type = float, required = False, default = 0.01,
                         help = " weight of the dice loss (if supervised)")
     
-    parser.add_argument("--supervised", type=int, required = False, default = 1,
+    parser.add_argument("--supervised", type=int, required = False, default = 0,
                         help="Supervised training or not (supervised = 1, unsupervised=0).")
     parser.add_argument("--nb_cascades", type=int, required = False, default = 5,
                         help="number of cascaded network")
-    parser.add_argument("--mode", type=str, required = False, default = "parallel",
+    parser.add_argument("--mode", type=str, required = False, default = "cascade",
                         help="Mode of the cascade training, parallel or cascade")
     parser.add_argument('--contracted', type=int, required = False, default = 1,
                         help="Contracted architecture or not (1/0)")
     parser.add_argument('--regularization', type=str, required = True, default = "grad",
                         help="Which regularization of the deformation, can be grad or NHE (neo-hookean energy strain")
+    parser.add_argument('--with_maps', type=int, required = False, default = 0,
+                        help="with regularization maps (1) or without (0)")
+    parser.add_argument('--ratio_nhe', type=float, required = False, default = 5.,
+                        help="ratio between shear and bulk modulus (if NHE loss is used)")
+    
     
     args = parser.parse_args()
 
@@ -92,12 +97,6 @@ if __name__ == "__main__":
     max_epoch = args.epochs
     img_size = args.img_size
     
-    file_suffix = make_suffix(args.supervised, args.contracted, args.nb_cascades, args.mode, args.lambda_)
-    
-    if not os.path.exists(args.save_dir):
-        if not os.path.exists((str(args.save_dir)+ file_suffix)):
-            os.makedirs(str(args.save_dir)+ file_suffix)
-        save_dir = os.path.join("weights/"+ file_suffix + "/")
         
     if not os.path.exists('logs/' + args.save_dir):
         os.makedirs('logs/' + args.save_dir)
@@ -107,7 +106,13 @@ if __name__ == "__main__":
     '''
     Initialize model
     '''    
-    model = CasReg(img_size, n_casc=args.nb_cascades, mode = args.mode, layer_mode = args.mode)
+    model = CasReg(img_size, batch_size=2, n_casc=args.nb_cascades, mode = args.mode, layer_mode = args.mode)
+    
+    if args.in_weights is not None:
+        best_model = torch.load(args.in_weights)['state_dict'] #model_dir + natsorted(os.listdir(model_dir))[model_idx])['state_dict']    
+        model.load_state_dict(best_model)
+    model.cuda()
+
 
     '''
     Initialize spatial transformation function
@@ -140,8 +145,8 @@ if __name__ == "__main__":
         # Loss                                                                                                                                                                                                    
         if args.supervised == 0:
             if args.regularization == "NHE":
-                if args.with_maps == False:
-                    loss_list = [losses.NCC().forward, losses.local_grad_neo_hookean(mu=0.11,lambda_=1.1).forward]
+                if args.with_maps == 0:
+                    loss_list = [losses.NCC().forward, losses.local_grad_neo_hookean(ratio=args.ratio_nhe).forward]
                 else:
                     loss_list = [losses.NCC().forward, losses.local_grad_neo_hookean_with_maps().forward]
             elif args.regularization == "grad":
@@ -213,6 +218,7 @@ if __name__ == "__main__":
         ncc = utils.AverageMeter()
         Dice_before_list = []
         Dice_after_list = []
+        ncc = 0
         
         with torch.no_grad():
             while steps2 < max_steps_val:
@@ -231,13 +237,14 @@ if __name__ == "__main__":
                 if args.supervised == 1:
                     output = model([x_in,x_seg_in])
                     
-                ncc = -loss_function[0](output[0],fixed)
+                Ncc_loss = loss_list[0]
+                ncc += -Ncc_loss(output[0],fixed).detach().cpu().numpy()
 
                 warped_seg = reg_model([moving_seg.cuda().float(), output[1].cuda()])
                 np.savez("segs_vxm.npz", fixed_seg=fixed_seg.cpu().numpy(), moving_seg=moving_seg.cpu().numpy(), warped_seg=warped_seg.cpu().numpy())
                 dsc = utils.dice_val(warped_seg.long(), fixed_seg.long(), 46)
                 
-                ncc.update(dsc.item(), moving.size(0))
+                # ncc.update(dsc.item(), moving.size(0))
                 
                 # write a function for the dice score
                 warped_seg_multi = utils.multi_channel_labels(np.squeeze(warped_seg.detach().cpu().numpy()),args.nb_labels)
@@ -246,9 +253,10 @@ if __name__ == "__main__":
 
                 dice_before_list = []
                 dice_after_list = []
+                
                 for i in range(args.nb_labels):
-                    dice_before = utils.dice2(fixed_seg[...,i],moving_seg[...,i], args.nb_labels)
-                    dice_after = utils.dice2(warped_seg[...,i],fixed_seg[...,i], args.nb_labels)
+                    dice_before = utils.dice(fixed_seg_multi[...,i],moving_seg_multi[...,i], args.nb_labels)
+                    dice_after = utils.dice(warped_seg_multi[...,i],fixed_seg_multi[...,i], args.nb_labels)
                     dice_after_list.append(dice_after)
                     dice_before_list.append(dice_before)
                 print("Dice before : ", dice_before_list)
@@ -271,10 +279,9 @@ if __name__ == "__main__":
             'optimizer': optimizer.state_dict(),
             'number cascades': args.nb_cascades,
             'supornot': args.supervised,
-            'cascade': args.cascades,
             'mode': args.mode
-        }, save_dir=save_dir, filename='dsc{:.3f}.pth.tar'.format(ncc.avg))
-        writer.add_scalar('DSC/validate', ncc.avg, epoch)
+        }, save_dir=args.save_dir, filename='ncc{:.3f}.pth.tar'.format(ncc/20.))
+        # writer.add_scalar('DSC/validate', ncc.avg, epoch)
 
 
 
