@@ -1,6 +1,7 @@
 import os, sys
 
-sys.path.append("/home/valentin/Desktop/Vox_pipeline/keras_med/")
+sys.path.append("/eos/jeodpp/data/projects/DIGLIFE/input-ftp/VM-monster/Codes/CasReg/keras_med/")
+sys.path.append("/eos/jeodpp/data/projects/DIGLIFE/input-ftp/VM-monster/Codes/CasReg/utils/")
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' # disable tensorflow warnings
 import argparse
 import glob
@@ -12,7 +13,7 @@ from scipy import ndimage, misc
 import nibabel as nib
 import SimpleITK as sitk
 
-from keras_med_io.inference.infer_utils import pad_nonint_extraction, undo_reshape_padding
+# Removed unused imports from keras_med
 from skimage.transform import resize
 
 from io_img_only import LocalPreprocessingBinarySeg

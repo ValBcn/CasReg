@@ -6,6 +6,9 @@ from math import exp
 import math
 import torch.nn as nn
 import pystrum.pynd.ndutils as nd
+import utils.utils as utils
+from data.data_utils import cpu
+
 
 def sum_tensor(inp, axes, keepdim=False):
     axes = np.unique(axes).astype(int)
@@ -291,7 +294,9 @@ class NCC(torch.nn.Module):
 
         I = y_true
         J = y_pred
-
+        
+        mask = y_true+y_pred
+        
         ndims = len(list(I.size())) - 2
         assert ndims in [1, 2, 3], "volumes should be 1 to 3 dimensions. found: %d" % ndims
 
@@ -335,9 +340,32 @@ class NCC(torch.nn.Module):
         I_var = I2_sum - 2 * u_I * I_sum + u_I * u_I * win_size
         J_var = J2_sum - 2 * u_J * J_sum + u_J * u_J * win_size
 
-        cc = cross * cross / (I_var * J_var + 1e-5)
-
+        cc = cross * cross / (I_var * J_var + 1e-3)
+        
+        print("cc tot :", -torch.mean(cc))
         return -torch.mean(cc)
+    
+def gradient_difference_loss(y_pred, y_true):
+    """
+    Gradient Difference Loss between predicted and true images.
+    """
+    # Compute gradients of predicted and true images
+    grad_pred_x = torch.abs(F.conv2d(y_pred, torch.tensor([[-1, 0, 1]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(y_pred.device)))
+    grad_pred_y = torch.abs(F.conv2d(y_pred, torch.tensor([[-1], [0], [1]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(y_pred.device)))
+    grad_true_x = torch.abs(F.conv2d(y_true, torch.tensor([[-1, 0, 1]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(y_true.device)))
+    grad_true_y = torch.abs(F.conv2d(y_true, torch.tensor([[-1], [0], [1]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(y_true.device)))
+    
+    # Compute absolute difference between gradients
+    grad_diff_x = torch.abs(grad_pred_x - grad_true_x)
+    grad_diff_y = torch.abs(grad_pred_y - grad_true_y)
+    
+    # Sum of squared differences
+    grad_diff = grad_diff_x.pow(2) + grad_diff_y.pow(2)
+    
+    # Compute mean over all pixels
+    loss = torch.mean(grad_diff)
+    
+    return loss
     
 class NCC_full(torch.nn.Module):
     """
@@ -357,7 +385,7 @@ class NCC_full(torch.nn.Module):
         assert ndims in [1, 2, 3], "volumes should be 1 to 3 dimensions. found: %d" % ndims
 
         # set window size
-        win = [7] * ndims if self.win is None else self.win
+        win = [7] * ndims if self.win is None else [self.win]*ndims
 
         # compute filters
         sum_filt = torch.ones([1, 1, *win]).to("cuda")
@@ -1155,10 +1183,9 @@ def jacobian_determinant_vxm(disp):
         return dfdx[..., 0] * dfdy[..., 1] - dfdy[..., 0] * dfdx[..., 1]
 
 class local_grad_neo_hookean(torch.nn.Module):
-    def __init__(self, ratio=5, return_maps=False, window = 3, mode = "exp", facx = None):
+    def __init__(self, ratio=5, return_maps=False, window = 5, mode = "exp", facx = None):
         super(local_grad_neo_hookean, self).__init__()
         self.ratio = ratio
-        self.lambda_ = lambda_
         self.return_maps = return_maps
         self.window = window
         self.mode = mode
@@ -1184,10 +1211,7 @@ class local_grad_neo_hookean(torch.nn.Module):
         dy = torch.abs(y_pred[:, :, 1:, :-1, :-1] - y_pred[:, :, :-1, :-1, :-1]) 
         dx = torch.abs(y_pred[:, :, :-1, 1:, :-1] - y_pred[:, :, :-1, :-1, :-1]) 
         dz = torch.abs(y_pred[:, :, :-1, :-1, 1:] - y_pred[:, :, :-1, :-1, :-1])
-        
-        # dy = torch.abs(y_pred[:, :, 2:, :-2, :-2] + 2*y_pred[:, :, 1:-1, :-1, :-1] - y_pred[:, :, :-2, :-2, :-2]) 
-        # dx = torch.abs(y_pred[:, :, :-2, 2:, :-2] + 2*y_pred[:, :, :-2, 1:-1, :-2] - y_pred[:, :, :-2, :-2, :-2])
-        # dz = torch.abs(y_pred[:, :, :-2, :-2, 2:] + 2*y_pred[:, :, :-2, :-2, 1:-1] - y_pred[:, :, :-2, :-2, :-2])
+
         
         # Create a filter that will be used to convolve the deformation field
         sum_filt = torch.ones([1,1, *win]).to("cuda")
@@ -1234,7 +1258,7 @@ class local_grad_neo_hookean(torch.nn.Module):
             stretch = Tr*torch.exp(-J+1)-3
             
         if self.mode == "original":
-            J[J<=0]=1e-6
+            J[J<=1e-1]=1e-1
             stretch = Tr*J**(-2./3.)-3
             # stretch -= stretch.min()
             
@@ -1255,25 +1279,187 @@ class local_grad_neo_hookean(torch.nn.Module):
         
         # return the loss and the first and second term of the energy, if return_maps==True
         if self.return_maps == True:
-            return torch.sum(U), stretch.detach().cpu().numpy(), vol_change.detach().cpu().numpy()
+            return U, stretch.detach().cpu().numpy(), vol_change.detach().cpu().numpy()
         else:
             return torch.mean(U)
+
+def entropy(ratio, num_bins=100):
         
-class local_grad_neo_hookean2D(torch.nn.Module):
-    def __init__(self, mu=0.2, lambda_=1., return_maps=False, window = 3, mode = "exp"):
-        super(local_grad_neo_hookean2D, self).__init__()
-        self.mu = mu
-        self.lambda_ = lambda_
+    hist = torch.histc(ratio[ratio>0.1], bins=num_bins, min=0, max=1)
+    prob = hist / (torch.sum(hist)+1e-5)
+    entropy = torch.sum(prob*torch.log(prob+1e-5))
+    
+    return entropy   
+        
+class local_grad_neo_hookean_dHCP(torch.nn.Module):
+    def __init__(self, shape, return_maps, weight_entropy = 0, window = 5, mode = "original", facx = None, use_entropy=False, normalize = False, return_everything=True):
+        super(local_grad_neo_hookean_dHCP, self).__init__()
         self.return_maps = return_maps
         self.window = window
         self.mode = mode
+        self.use_entropy = use_entropy
+        self.weight_entropy = weight_entropy   
+        self.normalize = normalize
+        self.return_everything = return_everything
         
-    def forward(self, y_pred, y_true):
+    def forward(self, y_pred, ratio, mask_grad = None):
         
+        # Define the window size for the convolution
+        win = [self.window]*3
+        
+        # y_pred[:,2,...] *= 10
+
+        # Compute the padding size, stride and output shape
+        pad_no = math.floor(win[0]/2)
+        stride = (1,1,1)
+        padding = (pad_no, pad_no, pad_no)        
+
+        # compute the gradient along x,y,z
+        dy = y_pred[:, :, 1:, :-1, :-1] - y_pred[:, :, :-1, :-1, :-1]
+        dx = y_pred[:, :, :-1, 1:, :-1] - y_pred[:, :, :-1, :-1, :-1]
+        dz = y_pred[:, :, :-1, :-1, 1:] - y_pred[:, :, :-1, :-1, :-1]
+
+        
+        # Create a filter that will be used to convolve the deformation field
+        sum_filt = torch.ones([1,1, *win]).to("cuda")
+        sum_filt = sum_filt/(self.window**3) # divide by window^3 to get the average over the window
+                
+        # convolve the gradients to get the partial derivatives of the deformation fields
+        dxdx = torch.nn.functional.conv3d(dx[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dX
+        dxdy = torch.nn.functional.conv3d(dy[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dY
+        dxdz = torch.nn.functional.conv3d(dz[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dZ
+        dydx = torch.nn.functional.conv3d(dx[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dX
+        dydy = torch.nn.functional.conv3d(dy[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dY
+        dydz = torch.nn.functional.conv3d(dz[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dZ
+        dzdx = torch.nn.functional.conv3d(dx[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dX
+        dzdy = torch.nn.functional.conv3d(dy[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dY
+        dzdz = torch.nn.functional.conv3d(dz[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dZ
+        
+        # compute the determinant of the deformation gradient tensor
+        det_1 = (dxdx+1) * ((dydy+1) * (dzdz+1) - dydz * dzdy)
+        det_2 = -dxdy * (dydx * (dzdz+1) - dydz * dzdx)
+        det_3 = dxdz * (dydx * dzdy - (dydy+1) * dzdx)
+        J = det_1 + det_2 + det_3
+
+        
+        n=1
+        # compute the trace of the right Cauchy-Green tensor
+        tr_1 = (dxdx+n)**2 + dxdy**2 + dxdz**2
+        tr_2 = dydx**2 + (dydy+n)**2 + dydz**2
+        tr_3 = dzdx**2 + dzdy**2 +(dzdz+n)**2
+        Tr = tr_1 + tr_2 + tr_3
+        
+        # lagrange strain tensor
+        Exx = 0.5 * (tr_1 - 1)
+        Eyy = 0.5 * (tr_2 - 1)
+        Ezz = 0.5 * (tr_3 - 1)
+        Exy = 0.5 * ((dxdx+n)*dxdy + dydx*(dydy+n) + dzdx*dzdy)
+        Exz = 0.5 * ((dxdx+n)*dxdz + dydx*dydz + dzdx*(dzdz+n))
+        Eyz = 0.5 * (dxdy*dxdz + (dydy+n)*dydz + dzdy*(dzdz+n))
+        
+        # eigenvalues
+        Lx = (2*Exx+1)**0.5
+        Ly = (2*Eyy+1)**0.5
+        Lz = (2*Ezz+1)**0.5
+        
+        # deformation angles
+        arg_xy = torch.clip(2*Exy * 1/((2*Exx+1)**0.5 * (2*Eyy+1)**0.5),min=-0.9,max=0.9)
+        arg_xz = torch.clip(2*Exz * 1/((2*Exx+1)**0.5 * (2*Ezz+1)**0.5),min=-0.9,max=0.9)
+        arg_yz = torch.clip(2*Eyz * 1/((2*Eyy+1)**0.5 * (2*Ezz+1)**0.5),min=-0.9,max=0.9)
+        
+        phi_xy = torch.arcsin(arg_xy)
+        phi_xz = torch.arcsin(arg_xz)
+        phi_yz = torch.arcsin(arg_yz)
+        
+        
+        # anisotrop of directional growth rate (ADGR)
+        
+        ADG = np.sqrt(0.5)*((Lx-Ly)**2+(Ly-Lz)**2+(Lz-Ly)**2)**0.5/(Lx**2+Ly**2+Lz**2)**0.5
+        
+        # adding a term based on gradient to avoid divergence
+        grad = torch.sum(dx**2 + dy**2 + dz **2, axis=1)[None,...]
+
+        # compute the determinant of the transformation's Jacobian to check if the transformation is invertible
+        
+
+        det_J = cpu(J)
+        det_J = det_J[mask_grad < 1e-1].flatten()
+        neg = len(det_J[det_J<=0])
+        percJ = 100*neg/len(det_J)
+        print("percent neg jac :", percJ)
+        
+        if self.mode == "exp":
+            stretch = Tr*torch.exp(-J+1)-3
+            
+        if self.mode == "original":
+            J[J<=1e-1]=1e-1
+            stretch = Tr*J**(-2./3.)-3
+            # stretch -= stretch.min()
+            
+        vol_change = (J-1)**2 #torch.exp(-J+1)+J-2
+        
+        
+        # compute the Neo-Hookean energy
+        
+        
+        if self.use_entropy == False:
+            ratio = torch.tensor([5.]).cuda()
+            mu = torch.tensor([1.]).cuda()
+            lambda_ = mu*ratio
+        elif self.use_entropy == True:
+            lambda_ = ratio[0,...,:-1][None,None,...]
+            mu = ratio[1,...,:-1][None,None,...]
+        
+        
+        
+        if self.normalize == False:
+            sum_mu_lambda = mu + lambda_
+            mu_normalized = (mu / sum_mu_lambda).cuda()
+            lambda_normalized = (lambda_ / sum_mu_lambda).cuda()
+            mu_cpu = cpu(mu_normalized)
+            lambda_cpu = cpu(lambda_normalized)
+            U = (mu_normalized[...,:-1]/2)*stretch + (lambda_normalized[...,:-1]/2) * vol_change
+            mu_cpu = cpu(mu)
+            lambda_cpu = cpu(lambda_)
+            norm_loss = np.mean((mu_cpu[mask_grad < 1e-1] + lambda_cpu[mask_grad < 1e-1]-2)**2)
+            
+        else:
+            mu_cpu = cpu(mu)
+            lambda_cpu = cpu(lambda_)
+            mask_grad_t = torch.tensor(mask_grad)[None,None,...]
+            norm_loss = torch.mean(mu[mask_grad_t < 1e-1] / (mu[mask_grad_t < 1e-1]+lambda_[mask_grad_t < 1e-1]+1e-5))
+            U = (mu/2)*stretch + (lambda_/2) * vol_change
+        
+        # stretch = cpu(stretch)
+        # vol_change = cpu(vol_change)
+        
+        if mask_grad is not None:
+            U = (1-torch.tensor(mask_grad).cuda()) * U + grad
+
+
+        return torch.mean(U) , (lambda_.clone(), mu.clone(), mask_grad, stretch, vol_change, Tr-3, phi_xy, phi_xz, phi_yz), (Exx, Eyy, Ezz, ADG, Exy, Exz, Eyz, percJ), J
+        
+class local_grad_neo_hookean2D(torch.nn.Module):
+    def __init__(self, shape, return_maps, weight_entropy = 0, window = 5, mode = "original", facx = None, use_entropy=False, normalize = False, return_everything=True):
+        super(local_grad_neo_hookean2D, self).__init__()
+        self.return_maps = return_maps
+        self.window = window
+        self.mode = mode
+        self.use_entropy = use_entropy
+        self.weight_entropy = weight_entropy   
+        self.normalize = normalize
+        self.return_everything = return_everything
+        
+    def forward(self, y_pred, ratio, mask_grad=None):
+        
+        slice_=5
+        y_pred= y_pred[:,:2,...,slice_]
+        mask_grad = mask_grad[...,slice_]
+        lambda_ = ratio[0,...,slice_]
+        mu = ratio[1,...,slice_]
         # Define the window size for the convolution
         win = [self.window] * 2
         
-        pos_idx = np.where(y_true.detach().cpu().numpy() > 0)
         
         # Compute the padding size, stride and output shape
         pad_no = math.floor(win[0]/2)
@@ -1281,9 +1467,10 @@ class local_grad_neo_hookean2D(torch.nn.Module):
         padding = (pad_no, pad_no)
 
         # compute the gradient along x,y,z
-        dy = torch.abs(y_pred[:, :, 1:, :-1] - y_pred[:, :, :-1, :-1]) 
-        dx = torch.abs(y_pred[:, :, :-1, 1:] - y_pred[:, :, :-1, :-1])
+        dy = y_pred[:, :, 1:, :-1] - y_pred[:, :, :-1, :-1]
+        dx = y_pred[:, :, :-1, 1:] - y_pred[:, :, :-1, :-1]
         
+        grad = dx**2 + dy**2
   
         # Create a filter that will be used to convolve the deformation field
         sum_filt = torch.ones([1,1, *win]).to("cuda")
@@ -1307,41 +1494,53 @@ class local_grad_neo_hookean2D(torch.nn.Module):
         
 
         # compute the determinant of the transformation's Jacobian to check if the transformation is invertible
-        # det_J, Tr = jacobian_determinant_vxm(y_pred.detach().cpu().numpy())
-        det_J = J.flatten()
+        det_J = cpu(J)
+        det_J = det_J[mask_grad < 1e-1].flatten()
         neg = len(det_J[det_J<0])
         print("percent neg jac :", 100*neg/len(det_J))
         
         
-        # convolve det_F and TrC to get their average value over window for each voxel        
-        # Ic =  torch.nn.functional.conv3d(Ic, sum_filt, stride=stride, padding=padding)
-        # J =  torch.nn.functional.conv3d(J, sum_filt, stride=stride, padding=padding)
-        # vol_change =  torch.nn.functional.conv3d(vol_change, sum_filt, stride=stride, padding=padding)
-        
         if self.mode == "exp":
-            stretch = (self.mu/2)*(Tr*torch.exp(-J+1)-3)
+            print("reg mode exp")
+            stretch = Tr*torch.exp(-J+1)-3
             
         if self.mode == "original":
-            J[J<=0]=1e-6
-            stretch = (self.mu/2)*(Tr*J**(-2./3.)-3) 
-            stretch -= stretch.min()
+            print("reg mode original")
+            J[J<=1e-1]=1e-1
+            stretch = Tr*J**(-2./3.)-2
             
-        vol_change = (self.lambda_/2)*(J-1)**2 #torch.exp(-J+1)+J-2
-        # vol_change -= vol_change.min()
+        vol_change = (J-1)**2 #torch.exp(-J+1)+J-2
+
+        if self.normalize == False:
+            sum_mu_lambda = mu + lambda_
+            mu_normalized = (mu / sum_mu_lambda).cuda()
+            lambda_normalized = (lambda_ / sum_mu_lambda).cuda()
+            mu_cpu = cpu(mu_normalized)
+            lambda_cpu = cpu(lambda_normalized)
+            U = (mu_normalized/2)*stretch + (lambda_normalized/2) * vol_change
+        else:
+            print("entropy loss activated")
+            mu_cpu = cpu(mu)
+            lambda_cpu = cpu(lambda_)
+            norm_loss = torch.mean(mu[mask_grad < 1e-1]-1)**2 + torch.mean(lambda_[mask_grad < 1e-1]-1)**2
+            U = (mu/2)*stretch + (lambda_/2) * vol_change
         
-        # compute the Neo-Hookean energy
-        U = (self.mu/2) * stretch + (self.lambda_/2) * vol_change
+        # stretch = cpu(stretch)
+        # vol_change = cpu(vol_change)
         
-        # save the first and second term of the energy, which represent the amount of deformation and the volume change, respectively
-        np.save("strech_c.npy", stretch.detach().cpu().numpy())
-        np.save("volumechange_c.npy", vol_change.detach().cpu().numpy())
+        if mask_grad is not None:
+            U = U+1e-1*grad #(1-torch.tensor(mask_grad).cuda()) * (U+1e-1*grad) + torch.tensor(mask_grad).cuda() * grad
         
+        print("U", torch.mean(stretch))
+        print("U", torch.mean(J**(-2./3.)))
+        print("U", torch.mean(Tr))
         
         # return the loss and the first and second term of the energy, if return_maps==True
-        if self.return_maps == True:
-            return torch.sum(U), stretch.detach().cpu().numpy(), vol_change.detach().cpu().numpy()
-        else:
-            return torch.mean(U)
+        # if self.return_maps == True:
+            
+        return torch.mean(U) , (lambda_.clone(), mu.clone()), J, self.weight_entropy * norm_loss
+        # else:
+        #     return torch.mean(U)
         
 class local_grad_neo_hookean_with_maps(torch.nn.Module):
     def __init__(self, mu=0.2, lambda_=1., return_maps=False, window = 3):
@@ -1474,3 +1673,204 @@ class jacobian_map(torch.nn.Module):
         J = det_1 + det_2 + det_3
 
         return np.squeeze(J.detach().cpu().numpy())
+    
+class NCC_multi(torch.nn.Module):
+    """
+    Local (over window) normalized cross correlation loss.
+    """
+
+    def __init__(self, win=None):
+        super(NCC_multi, self).__init__()
+        self.win = win
+
+    def forward(self, y_pred, y_true):
+
+        I = y_true
+        J = y_pred
+        
+        mask = y_true+y_pred
+        
+        ndims = len(list(I.size())) - 2
+        assert ndims in [1, 2, 3], "volumes should be 1 to 3 dimensions. found: %d" % ndims
+        
+        cc_tot = 0
+        
+        for i in range(5):
+
+            # set window size
+            win = [2*i+3] * ndims if self.win is None else self.win
+    
+            # compute filters
+            sum_filt = torch.ones([1, 1, *win]).to("cuda")
+    
+            pad_no = math.floor(win[0]/2)
+    
+            if ndims == 1:
+                stride = (1)
+                padding = (pad_no)
+            elif ndims == 2:
+                stride = (1,1)
+                padding = (pad_no, pad_no)
+            else:
+                stride = (1,1,1)
+                padding = (pad_no, pad_no, pad_no)
+    
+            # get convolution function
+            conv_fn = getattr(F, 'conv%dd' % ndims)
+    
+            # compute CC squares
+            I2 = I * I
+            J2 = J * J
+            IJ = I * J
+    
+            I_sum = conv_fn(I, sum_filt, stride=stride, padding=padding)
+            J_sum = conv_fn(J, sum_filt, stride=stride, padding=padding)
+            I2_sum = conv_fn(I2, sum_filt, stride=stride, padding=padding)
+            J2_sum = conv_fn(J2, sum_filt, stride=stride, padding=padding)
+            IJ_sum = conv_fn(IJ, sum_filt, stride=stride, padding=padding)
+    
+            win_size = np.prod(win)
+            u_I = I_sum / win_size
+            u_J = J_sum / win_size
+    
+            cross = IJ_sum - u_J * I_sum - u_I * J_sum + u_I * u_J * win_size
+            I_var = I2_sum - 2 * u_I * I_sum + u_I * u_I * win_size
+            J_var = J2_sum - 2 * u_J * J_sum + u_J * u_J * win_size
+    
+            cc = cross * cross / (I_var * J_var + 1e-3)
+            
+            cc_tot -= torch.mean(cc[mask>0.05])
+            
+            print("cc tot %i:" %(2*i+3), cc_tot)
+        return cc_tot
+    
+    
+class local_grad_neo_hookean_hybrid(torch.nn.Module):
+    def __init__(self, shape, return_maps, window = 5, mode = "original", facx = None, use_entropy=False):
+        super(local_grad_neo_hookean_hybrid, self).__init__()
+        self.return_maps = return_maps
+        self.window = window
+        self.mode = mode
+        self.use_entropy = use_entropy
+        
+        
+    def forward(self, y_pred, ratio, maskgrad):
+        
+        # Define the window size for the convolution
+        win = [self.window] * 3
+
+
+        # Compute the padding size, stride and output shape
+        pad_no = math.floor(win[0]/2)
+        stride = (1,1,1)
+        padding = (pad_no, pad_no, pad_no)
+
+        # compute the gradient along x,y,z
+        dy = torch.abs(y_pred[:, :, 1:, :-1, :-1] - y_pred[:, :, :-1, :-1, :-1]) 
+        dx = torch.abs(y_pred[:, :, :-1, 1:, :-1] - y_pred[:, :, :-1, :-1, :-1]) 
+        dz = torch.abs(y_pred[:, :, :-1, :-1, 1:] - y_pred[:, :, :-1, :-1, :-1])
+        
+                
+        Dy = dy * dy
+        Dx = dx * dx
+        Dz = dz * dz
+
+        d = torch.mean(Dx) + torch.mean(Dy) + torch.mean(Dz)
+        grad = d / 3.0
+
+        
+        # Create a filter that will be used to convolve the deformation field
+        sum_filt = torch.ones([1,1, *win]).to("cuda")
+        sum_filt = sum_filt/(self.window**3) # divide by window^3 to get the average over the window
+                
+        # convolve the gradients to get the partial derivatives of the deformation fields
+        dxdx = torch.nn.functional.conv3d(dx[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dX
+        dxdy = torch.nn.functional.conv3d(dy[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dY
+        dxdz = torch.nn.functional.conv3d(dz[:,1:2,...], sum_filt, stride=stride, padding=padding) # dx/dZ
+        dydx = torch.nn.functional.conv3d(dx[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dX
+        dydy = torch.nn.functional.conv3d(dy[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dY
+        dydz = torch.nn.functional.conv3d(dz[:,0:1,...], sum_filt, stride=stride, padding=padding) # dy/dZ
+        dzdx = torch.nn.functional.conv3d(dx[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dX
+        dzdy = torch.nn.functional.conv3d(dy[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dY
+        dzdz = torch.nn.functional.conv3d(dz[:,2:3,...], sum_filt, stride=stride, padding=padding) # dz/dZ
+        
+        # compute the determinant of the deformation gradient tensor
+        det_1 = (dxdx+1) * ((dydy+1) * (dzdz+1) - dydz * dzdy)
+        det_2 = -dxdy * (dydx * (dzdz+1) - dydz * dzdx)
+        det_3 = dxdz * (dydx * dzdy - (dydy+1) * dzdx)
+        J = det_1 + det_2 + det_3
+        
+        # compute the trace of the right Cauchy-Green tensor
+        tr_1 = (dxdx+1)**2 + dxdy**2 + dxdz**2
+        tr_2 = dydx**2 + (dydy+1)**2 + dydz**2
+        tr_3 = dzdx**2 + dzdy**2 +(dzdz+1)**2
+        Tr = tr_1 + tr_2 + tr_3
+        
+        # adding a term based on gradient to avoid divergence
+        grad = dx**2 + dy**2 + dz **2
+
+        # compute the determinant of the transformation's Jacobian to check if the transformation is invertible
+        det_J = J.flatten()
+        neg = len(det_J[det_J<0])
+        print("percent neg jac :", 100*neg/len(det_J))
+        
+        
+        det2 = jacobian_determinant_vxm(y_pred[0,...].detach().cpu().numpy())
+        det2 = det2.flatten()
+        # print("percent neg jac 2:", 100*len(det2[det2<0])/len(det2))
+        
+        
+        if self.mode == "exp":
+            print("reg mode exp")
+            stretch = Tr*torch.exp(-J+1)-3
+            
+        if self.mode == "original":
+            print("reg mode original")
+            J[J<=1e-1]=1e-1
+            stretch = Tr*J**(-2./3.)-3
+            # stretch -= stretch.min()
+            
+        vol_change = (J-1)**2 #torch.exp(-J+1)+J-2
+        
+        
+        # compute the Neo-Hookean energy
+        mu = torch.FloatTensor([1.]).cuda()
+        
+        if self.use_entropy == False:
+            print("constant ratio")
+            ratio = torch.tensor([5.]).cuda()
+        elif self.use_entropy == True:
+            print("variable ratio")
+        
+        lambda_ = mu*ratio
+        
+        print("min mu: ", mu.min())
+        print("min lambda: ", lambda_.min())
+        
+        sum_mu_lambda = mu + lambda_
+        mu_normalized = (mu / sum_mu_lambda).cuda()
+        lambda_normalized = (lambda_ / sum_mu_lambda).cuda()
+        
+        print("min mu norm: ", mu_normalized.min())
+        print("min lambda norm: ", lambda_normalized.min())
+        
+        print("forward ratio type :", type(ratio))
+        
+        U = (mu_normalized/2)*stretch + (lambda_normalized/2) * vol_change
+        
+        # save the first and second term of the energy, which represent the amount of deformation and the volume change, respectively
+        np.save("strech_c.npy", stretch.detach().cpu().numpy())
+        np.save("volumechange_c.npy", vol_change.detach().cpu().numpy())
+        
+        U_grad = (1-maskgrad) * U + maskgrad * grad
+        
+        
+        # return the loss and the first and second term of the energy, if return_maps==True
+        if self.return_maps == True:
+            return U, cpu(stretch), cpu(vol_change), cpu(ratio)
+        else:
+            if self.use_entropy == True:
+                return torch.mean(U_grad) - entropy(ratio) , entropy(ratio)
+            else:
+                return torch.mean(U_grad), ratio
+    

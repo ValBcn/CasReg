@@ -1,10 +1,11 @@
 import numpy as np
-import sys
+import sys, os
 
-sys.path.append("/home/valentin/Desktop/TransMorph_Transformer_for_Medical_Image_Registration/Baseline_registration_models/VoxelMorph/keras_med")
+
+
 from skimage.transform import resize
-from keras_med_io.utils.intensity_io import clip_upper_lower_percentile
-from keras_med_io.utils.shape_io import extract_nonint_region, resample_array, extract_masked_region
+from .intensity_utils import clip_upper_lower_percentile
+from .shape_utils import extract_nonint_region, resample_array, extract_masked_region
 from nibabel import Nifti1Image
 import itertools
 import scipy.signal
@@ -41,7 +42,6 @@ def isensee_preprocess(input_image, mask, orig_spacing, get_coords = False, ct =
 
     if flip_label==1:
         mask = np.flip(mask,axis=2)
-        print("labels are flipped")
     # 1. Cropping
     if get_coords:
         extracted_img, extracted_mask, coords = extract_nonint_region(input_image, mask = mask, outside_value=out_value, coords = True)
@@ -192,8 +192,6 @@ def resize_and_uncrop(img,coords,old_shape,no_rot=False):
 
     resized_img = resize_data(np.rot90(img,k=3,axes=(1,2)),size_x,size_y,size_z)
 
-    print("resize image shape", resized_img.shape)
-    print("sizes . %f %f %f" %(size_x,size_y, size_z))
 
     if no_rot == False:
         uncropped_img = np.rot90(np.zeros(old_shape),k=3,axes=(1,2))

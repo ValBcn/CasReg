@@ -64,3 +64,63 @@ def gen_feats():
     feats /= shape
 
     return feats
+
+
+def multi_channel_labels(label, nb_labels):
+    """
+    Convert single-channel labels to multi-channel format.
+
+    Args:
+        label: Input label array
+        nb_labels: Number of label classes
+
+    Returns:
+        Multi-channel label array
+    """
+    multi_channel_label = np.zeros((*label.shape, nb_labels))
+
+    for i in range(nb_labels):
+        multi_channel_label[..., i] = np.where(label != i, multi_channel_label[..., i], 1)
+    return multi_channel_label
+
+
+def write2csv(line, name):
+    """
+    Write a line to CSV file.
+
+    Args:
+        line: Line to write
+        name: Filename (without extension)
+    """
+    with open(name+'.csv', 'a') as file:
+        file.write(line)
+        file.write('\n')
+
+
+def cpu(tensor):
+    """
+    Convert tensor to CPU numpy array.
+
+    Args:
+        tensor: Input tensor
+
+    Returns:
+        CPU numpy array
+    """
+    return np.squeeze(tensor.detach().cpu().numpy())
+
+
+def norm_flow(flow):
+    """
+    Normalize flow field to [0, 1] range.
+
+    Args:
+        flow: Input flow field
+
+    Returns:
+        Normalized flow field
+    """
+    norm_flow = np.zeros(flow.shape)
+    for i in range(flow.shape[0]):
+        norm_flow[i,...] = (flow[i,...] - flow[i,...].min()) / (flow[i,...].max() - flow[i,...].min())
+    return norm_flow

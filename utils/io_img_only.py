@@ -3,7 +3,7 @@ import os, sys
 import nibabel as nib
 import numpy as np
 
-from keras_med_io.utils.shape_io import reshape, resample_array, extract_nonint_region
+# Removed unused imports from keras_med
 from io_utils import *
 from os.path import join, isdir
 

@@ -277,7 +277,8 @@ class CasReg(nn.Module):
                  unet_feat_mult=1,
                  mode="cascade",
                  layer_mode="contracted",
-                 use_probs=False):
+                 use_probs=False,
+                 return_list=True):
         """
         Parameters:
             inshape: Input shape. e.g. (192, 192, 192)
@@ -306,6 +307,7 @@ class CasReg(nn.Module):
         self.mode = mode
         self.use_probs = use_probs
         self.layer_mode = layer_mode
+        self.return_list = return_list
 
         # ensure correct dimensionality
         ndims = len(inshape)
@@ -318,6 +320,8 @@ class CasReg(nn.Module):
             # configure core unet model
             if layer_mode == "original":
                 self.nb_unet_features = ((16, 32, 32, 32), (32, 32, 32, 32, 32, 16, 16))
+            if layer_mode == "huge":
+                self.nb_unet_features = ((32, 64, 64, 64), (64, 64, 64, 64, 64, 32, 32))
             if layer_mode == "contracted":
                 self.nb_unet_features = ((16,32,64,64,128),(128,64,64,32,16,16))
                 if layer_mode == "contracted_cardiac":
@@ -366,52 +370,338 @@ class CasReg(nn.Module):
         # concatenate inputs and propagate unet
         fixed = x[:, 1:2, ...]
         source = x[:, 0:1, :, :]
-        flow_list = []
                 
         flow_list = []
         warped_list = []
-        sum_flow = torch.zeros((1,3,128,128,128)).cuda()
-        if self.layer_mode == "contracted_cardiac":
-            sum_flow = torch.zeros((1,2,128,128)).cuda()
+        sum_flow = torch.zeros((1,3,x.shape[2],x.shape[3],x.shape[4])).cuda()
+
         max_flow_list = []
+    
         
         for casc in range(self.n_casc):
             x = self.models[casc].cuda()(x)
             # transform into flow field
             flow_field = self.flows[casc].cuda()(x)
             max_flow_list.append(round(flow_field.max().item(),3))
-            if self.mode == "parallel":
-                x = torch.concat((source,fixed),dim=1)
-            if self.mode == "cascade":
-                sum_flow += flow_field
-                warped = self.transformer(source, sum_flow)
-                warped_list.append(warped)
-                x = torch.cat((warped,fixed),dim=1)
+            
+            sum_flow += flow_field[0,...]
+            warped = self.transformer(source[0:1,...],sum_flow)
+
+
+            x = torch.cat((warped,fixed[0:1,...]),dim=1)
                 
         
             flow_list.append(flow_field)
         print("max flow : ", max_flow_list)
+        print("Layer mode : ", self.layer_mode)
+        # warp image with flow field
+        # warped = self.transformer(source, sum_flow)
+        
+        if self.return_list == True:
+            return warped, sum_flow, flow_list , warped_list
+        else:
+            return warped, sum_flow, flow_list
+
+
+class CasReg_dHCP(nn.Module):
+    """
+    Cascaded networks for unsupervised nonlinear registration between two images.
+    """
+    def __init__(self,
+                 inshape,
+                 batch_size,
+                 n_casc=2,
+                 nb_unet_features=((16, 32, 32, 32), (32, 32, 32, 32, 32, 16, 16)),
+                 nb_unet_levels=None,
+                 unet_feat_mult=1,
+                 mode="cascade",
+                 layer_mode="contracted",
+                 use_probs=False,
+                 return_list=True):
+        """
+        Parameters:
+            inshape: Input shape. e.g. (192, 192, 192)
+            nb_unet_features: Unet convolutional features. Can be specified via a list of lists with
+                the form [[encoder feats], [decoder feats]], or as a single integer. If None (default),
+                the unet features are defined by the default config described in the unet class documentation.
+            nb_unet_levels: Number of levels in unet. Only used when nb_features is an integer. Default is None.
+            unet_feat_mult: Per-level feature multiplier. Only used when nb_features is an integer. Default is 1.
+            int_steps: Number of flow integration steps. The warp is non-diffeomorphic when this value is 0.
+            int_downsize: Integer specifying the flow downsample factor for vector integration. The flow field
+                is not downsampled when this value is 1.
+            bidir: Enable bidirectional cost function. Default is False.
+            use_probs: Use probabilities in flow field. Default is False.
+        """
+        
+        super().__init__()
+
+        self.n_casc = n_casc
+        self.batch_size = batch_size
+        self.inshape = inshape
+        self.nb_unet_features = nb_unet_features
+        self.nb_unet_levels = nb_unet_levels
+        self.unet_feat_mult = unet_feat_mult
+        # internal flag indicating whether to return flow or integrated warp during inference
+        self.training = True
+        self.mode = mode
+        self.use_probs = use_probs
+        self.layer_mode = layer_mode
+        self.return_list = return_list
+
+        # ensure correct dimensionality
+        ndims = len(inshape)
+        assert ndims in [1, 2, 3], 'ndims should be one of 1, 2, or 3. found: %d' % ndims
+
+        self.models = nn.ModuleList()
+        self.flows = nn.ModuleList()
+
+        for casc in range(self.n_casc):
+            # configure core unet model
+            if layer_mode == "original":
+                self.nb_unet_features = ((16, 32, 32, 32), (32, 32, 32, 32, 32, 16, 16))
+            if layer_mode == "huge":
+                self.nb_unet_features = ((64, 128, 128, 128), (128, 128, 128, 128, 128, 64, 64))
+            if layer_mode == "contracted":
+                self.nb_unet_features = ((16,32,64,64,128),(128,64,64,32,16,16))
+                if layer_mode == "contracted_cardiac":
+                    self.nb_unet_features = ((16,32,64,64,128),(128,64,64,32,16,16))
+            
+                
+            self.unet_model = Unet(inshape,nb_features=self.nb_unet_features,nb_levels=nb_unet_levels,feat_mult=unet_feat_mult)
+            
+            # Add batch normalization to each convolutional layer
+            self.add_batchnorm()
+            
+            # configure unet to flow field layer
+            Conv = getattr(nn, 'Conv%dd' % ndims)
+            self.flow = Conv(self.unet_model.dec_nf[-1], ndims, kernel_size=3, padding=1)
+
+            # init flow layer with small weights and bias
+            self.flow.weight = nn.Parameter(Normal(0, 1e-5).sample(self.flow.weight.shape))
+            self.flow.bias = nn.Parameter(torch.zeros(self.flow.bias.shape))
+
+            self.models.append(self.unet_model)
+            self.flows.append(self.flow)
+            
+            self.transformer = SpatialTransformer(inshape).cuda()
+
+    def add_batchnorm(self):
+        """
+        Add batch normalization to each convolutional layer of the unet model
+        """
+        for i, m in enumerate(self.unet_model.modules()):
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv3d):
+                m.weight = nn.Parameter(nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu'))
+                m.bias = nn.Parameter(nn.init.constant_(m.bias, 0))
+                nn.init.constant_(m.bias, 0)
+                modules = nn.ModuleList()
+                modules.append(nn.BatchNorm2d(m.out_channels))
+        self.unet_model.modules = modules
+        
+    def forward(self, x: torch.Tensor):
+        '''
+        Parameters:
+            source: Source image tensor.
+            target: Target image tensor.
+            registration: Return transformed image and flow. Default is False.
+        '''
+
+        # concatenate inputs and propagate unet
+        fixed = x[:, 1:2, ...]
+        source = x[:, 0:1, :, :]
+                
+        flow_list = []
+        warped_list = []
+        sum_flow = torch.zeros((1,3,x.shape[2],x.shape[3],x.shape[4])).cuda()
+
+        max_flow_list = []
+    
+        
+        for casc in range(self.n_casc):
+            x = self.models[casc].cuda()(x)
+            # transform into flow field
+            flow_field = self.flows[casc].cuda()(x)
+            max_flow_list.append(round(flow_field.max().item(),3))
+            
+            sum_flow += flow_field
+            warped = self.transformer(source,sum_flow)
+
+            x = torch.cat((warped,fixed),dim=1)
+                
+        
+            flow_list.append(flow_field)
+        print("max flow : ", max_flow_list)
+        print("Layer mode : ", self.layer_mode)
         # warp image with flow field
         warped = self.transformer(source, sum_flow)
         
-        return warped, sum_flow, flow_list , warped_list
-
-
-
-
-class LayerNorm(nn.Module):
-    r""" LayerNorm that supports two data formats: channels_last (default) or channels_first. 
-    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with 
-    shape (batch_size, height, width, channels) while channels_first corresponds to inputs 
-    with shape (batch_size, channels, height, width).
+        if self.return_list == True:
+            return warped, sum_flow, flow_list , warped_list
+        else:
+            return warped, sum_flow, flow_list
+        
+class CasReg_nhe(nn.Module):
     """
-    def __init__(self, normalized_shape, eps=1e-6):
+    Cascaded networks for unsupervised nonlinear registration between two images.
+    """
+    def __init__(self,
+                 inshape,
+                 batch_size,
+                 n_casc=2,
+                 coef_ratio=10,
+                 nb_unet_features=((16, 32, 32, 32), (32, 32, 32, 32, 32, 16, 16)),
+                 nb_unet_levels=None,
+                 unet_feat_mult=1,
+                 mode="cascade",
+                 layer_mode="contracted",
+                 use_probs=False,
+                 return_list=True):
+        """
+        Parameters:
+            inshape: Input shape. e.g. (192, 192, 192)
+            nb_unet_features: Unet convolutional features. Can be specified via a list of lists with
+                the form [[encoder feats], [decoder feats]], or as a single integer. If None (default),
+                the unet features are defined by the default config described in the unet class documentation.
+            nb_unet_levels: Number of levels in unet. Only used when nb_features is an integer. Default is None.
+            unet_feat_mult: Per-level feature multiplier. Only used when nb_features is an integer. Default is 1.
+            int_steps: Number of flow integration steps. The warp is non-diffeomorphic when this value is 0.
+            int_downsize: Integer specifying the flow downsample factor for vector integration. The flow field
+                is not downsampled when this value is 1.
+            bidir: Enable bidirectional cost function. Default is False.
+            use_probs: Use probabilities in flow field. Default is False.
+        """
+        
         super().__init__()
-        self.weight = nn.Parameter(torch.ones(normalized_shape))
-        self.bias = nn.Parameter(torch.zeros(normalized_shape))
-        self.eps = eps
-        self.normalized_shape = (normalized_shape,)
-    
-    def forward(self, x):
-        return nnf.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
 
+        self.n_casc = n_casc
+        self.batch_size = batch_size
+        self.inshape = inshape
+        self.nb_unet_features = nb_unet_features
+        self.nb_unet_levels = nb_unet_levels
+        self.unet_feat_mult = unet_feat_mult
+        # internal flag indicating whether to return flow or integrated warp during inference
+        self.training = True
+        self.mode = mode
+        self.use_probs = use_probs
+        self.layer_mode = layer_mode
+        self.return_list = return_list
+        self.coef_ratio = coef_ratio
+
+        # ensure correct dimensionality
+        ndims = len(inshape)
+        assert ndims in [1, 2, 3], 'ndims should be one of 1, 2, or 3. found: %d' % ndims
+
+        self.models = nn.ModuleList()
+        self.flows = nn.ModuleList()
+
+        for casc in range(self.n_casc):
+            # configure core unet model
+            if layer_mode == "original":
+                self.nb_unet_features = ((16, 32, 32, 32), (32, 32, 32, 32, 32, 16, 16))
+            if layer_mode == "huge":
+                self.nb_unet_features = ((32, 64, 64, 64), (64, 64, 64, 64, 64, 32, 32))
+            if layer_mode == "contracted":
+                self.nb_unet_features = ((16,32,64,64,128),(128,64,64,32,16,16))
+                if layer_mode == "contracted_cardiac":
+                    self.nb_unet_features = ((16,32,64,64,128),(128,64,64,32,16,16))
+            
+                
+            self.unet_model = Unet(inshape,nb_features=self.nb_unet_features,nb_levels=nb_unet_levels,feat_mult=unet_feat_mult)
+            
+            # Add batch normalization to each convolutional layer
+            self.add_batchnorm()
+            
+            # configure unet to flow field layer
+            Conv = getattr(nn, 'Conv%dd' % ndims)
+            self.flow = Conv(self.unet_model.dec_nf[-1], ndims, kernel_size=3, padding=1)
+
+            # init flow layer with small weights and bias
+            self.flow.weight = nn.Parameter(Normal(0, 1e-5).sample(self.flow.weight.shape))
+            self.flow.bias = nn.Parameter(torch.zeros(self.flow.bias.shape))
+
+            self.models.append(self.unet_model)
+            self.flows.append(self.flow)
+            
+            self.transformer = SpatialTransformer(inshape).cuda()
+        
+        # init ratio
+        self.unet_model_ratio = Unet(inshape,nb_features=self.nb_unet_features,nb_levels=nb_unet_levels,feat_mult=unet_feat_mult)
+        self.ratio = Conv(self.unet_model_ratio.dec_nf[-1], ndims, kernel_size=3, padding=1)
+        self.ratio.weight = nn.Parameter(Normal(0, 1e-5).sample(self.ratio.weight.shape))
+        self.ratio.bias = nn.Parameter(torch.zeros(self.ratio.bias.shape))
+
+    def add_batchnorm(self):
+        """
+        Add batch normalization to each convolutional layer of the unet model
+        """
+        for i, m in enumerate(self.unet_model.modules()):
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv3d):
+                m.weight = nn.Parameter(nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu'))
+                m.bias = nn.Parameter(nn.init.constant_(m.bias, 0))
+                nn.init.constant_(m.bias, 0)
+                modules = nn.ModuleList()
+                modules.append(nn.BatchNorm2d(m.out_channels))
+        self.unet_model.modules = modules
+        
+    def forward(self, x: torch.Tensor, TwoD: bool = None):
+        """
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor with shape (B, C, ...) where C=2 for (source, fixed).
+        TwoD : bool, optional
+            If True, zero out the last flow dimension (for 2D registration).
+        """
+    
+        fixed = x[:, 1:2]
+        source = x[:, 0:1]
+    
+        spatial_shape = x.shape[2:]
+        ndim = len(spatial_shape)
+    
+        sum_flow = torch.zeros((1, ndim, *spatial_shape), device=x.device, dtype=x.dtype)
+        flow_list = []
+        warped_list = []
+        max_flow_list = []
+        min_flow_list = []
+    
+        # Compute normalized ratio map
+        ratio = self.unet_model_ratio(x)
+        ratio = self.ratio(ratio)
+        ratio = (ratio - ratio.mean()) / ratio.std()
+        ratio = torch.sigmoid(ratio)
+    
+        # Cascaded registration
+        for casc in range(self.n_casc):
+            x = self.models[casc](x)
+            flow_field = self.flows[casc](x)
+    
+            # If 2D mode, zero the z-component of the flow
+            if TwoD:
+                flow_field[:, -1] = 0
+    
+            max_flow_list.append(round(flow_field.max().item(), 3))
+            min_flow_list.append(round(flow_field.min().item(), 3))
+
+    
+            sum_flow += flow_field
+            warped = self.transformer(source[0:1], sum_flow)
+            warped_list.append(warped)
+    
+            x = torch.cat((warped, fixed[0:1]), dim=1)
+            flow_list.append(flow_field)
+            
+        print("max flow : ", max_flow_list)
+    
+        # Crop ratio output depending on dimensionality
+        if ndim == 3:  # 3D case: (B, C, D, H, W)
+            output_ratio = self.coef_ratio * ratio[0, :-1, :-1, :-1]
+        elif ndim == 2:  # 2D case: (B, C, H, W)
+            output_ratio = self.coef_ratio * ratio[0, :-1, :-1]
+        else:
+            raise ValueError(f"Unexpected spatial dimensions: {spatial_shape}")
+    
+        if self.return_list:
+            return warped, sum_flow, flow_list, warped_list, output_ratio
+        else:
+            return warped, sum_flow, flow_list, output_ratio
